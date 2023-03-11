@@ -1,0 +1,208 @@
+{
+	"1": {
+		"state": {
+			"on": true,
+			"bri": 254,
+			"hue": 14987,
+			"sat": 141,
+			"effect": "none",
+			"xy": [
+				0.5018,
+				0.4152
+			],
+			"ct": 447,
+			"alert": "select",
+			"colormode": "xy",
+			"mode": "homeautomation",
+			"reachable": false
+		},
+		"swupdate": {
+			"state": "noupdates",
+			"lastinstall": "2023-01-02T23:00:08"
+		},
+		"type": "Extended color light",
+		"name": "Room Bed",
+		"modelid": "LCT007",
+		"manufacturername": "Signify Netherlands B.V.",
+		"productname": "Hue color lamp",
+		"capabilities": {
+			"certified": true,
+			"control": {
+				"mindimlevel": 2000,
+				"maxlumen": 800,
+				"colorgamuttype": "B",
+				"colorgamut": [
+					[
+						0.675,
+						0.322
+					],
+					[
+						0.409,
+						0.518
+					],
+					[
+						0.167,
+						0.04
+					]
+				],
+				"ct": {
+					"min": 153,
+					"max": 500
+				}
+			},
+			"streaming": {
+				"renderer": true,
+				"proxy": true
+			}
+		},
+		"config": {
+			"archetype": "sultanbulb",
+			"function": "mixed",
+			"direction": "omnidirectional",
+			"startup": {
+				"mode": "safety",
+				"configured": true
+			}
+		},
+		"uniqueid": "00:17:88:01:10:54:27:72-0b",
+		"swversion": "67.101.2"
+	},
+	"5": {
+		"state": {
+			"on": true,
+			"bri": 254,
+			"hue": 40615,
+			"sat": 38,
+			"effect": "none",
+			"xy": [
+				0.3469,
+				0.3568
+			],
+			"ct": 203,
+			"alert": "select",
+			"colormode": "ct",
+			"mode": "homeautomation",
+			"reachable": true
+		},
+		"swupdate": {
+			"state": "noupdates",
+			"lastinstall": "2023-02-23T22:38:31"
+		},
+		"type": "Extended color light",
+		"name": "Lamp",
+		"modelid": "LCA003",
+		"manufacturername": "Signify Netherlands B.V.",
+		"productname": "Hue color lamp",
+		"capabilities": {
+			"certified": true,
+			"control": {
+				"mindimlevel": 200,
+				"maxlumen": 800,
+				"colorgamuttype": "C",
+				"colorgamut": [
+					[
+						0.6915,
+						0.3083
+					],
+					[
+						0.17,
+						0.7
+					],
+					[
+						0.1532,
+						0.0475
+					]
+				],
+				"ct": {
+					"min": 153,
+					"max": 500
+				}
+			},
+			"streaming": {
+				"renderer": true,
+				"proxy": true
+			}
+		},
+		"config": {
+			"archetype": "sultanbulb",
+			"function": "mixed",
+			"direction": "omnidirectional",
+			"startup": {
+				"mode": "safety",
+				"configured": true
+			}
+		},
+		"uniqueid": "00:17:88:01:08:de:6a:e9-0b",
+		"swversion": "1.101.10",
+		"swconfigid": "4FD50FDB",
+		"productid": "Philips-LCA003-1-A19ECLv6"
+	},
+	"6": {
+		"state": {
+			"on": true,
+			"bri": 254,
+			"hue": 14987,
+			"sat": 141,
+			"effect": "none",
+			"xy": [
+				0.5018,
+				0.4152
+			],
+			"ct": 447,
+			"alert": "select",
+			"colormode": "xy",
+			"mode": "homeautomation",
+			"reachable": false
+		},
+		"swupdate": {
+			"state": "noupdates",
+			"lastinstall": "2022-12-14T22:27:33"
+		},
+		"type": "Extended color light",
+		"name": "Room TV",
+		"modelid": "LCT007",
+		"manufacturername": "Signify Netherlands B.V.",
+		"productname": "Hue color lamp",
+		"capabilities": {
+			"certified": true,
+			"control": {
+				"mindimlevel": 2000,
+				"maxlumen": 800,
+				"colorgamuttype": "B",
+				"colorgamut": [
+					[
+						0.675,
+						0.322
+					],
+					[
+						0.409,
+						0.518
+					],
+					[
+						0.167,
+						0.04
+					]
+				],
+				"ct": {
+					"min": 153,
+					"max": 500
+				}
+			},
+			"streaming": {
+				"renderer": true,
+				"proxy": true
+			}
+		},
+		"config": {
+			"archetype": "sultanbulb",
+			"function": "mixed",
+			"direction": "omnidirectional",
+			"startup": {
+				"mode": "safety",
+				"configured": true
+			}
+		},
+		"uniqueid": "00:17:88:01:10:54:27:c5-0b",
+		"swversion": "67.101.2"
+	}
+}
