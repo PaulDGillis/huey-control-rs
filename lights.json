@@ -1,208 +1,285 @@
 {
-	"1": {
-		"state": {
-			"on": true,
-			"bri": 254,
-			"hue": 14987,
-			"sat": 141,
-			"effect": "none",
-			"xy": [
-				0.5018,
-				0.4152
-			],
-			"ct": 447,
-			"alert": "select",
-			"colormode": "xy",
-			"mode": "homeautomation",
-			"reachable": false
-		},
-		"swupdate": {
-			"state": "noupdates",
-			"lastinstall": "2023-01-02T23:00:08"
-		},
-		"type": "Extended color light",
-		"name": "Room Bed",
-		"modelid": "LCT007",
-		"manufacturername": "Signify Netherlands B.V.",
-		"productname": "Hue color lamp",
-		"capabilities": {
-			"certified": true,
-			"control": {
-				"mindimlevel": 2000,
-				"maxlumen": 800,
-				"colorgamuttype": "B",
-				"colorgamut": [
-					[
-						0.675,
-						0.322
-					],
-					[
-						0.409,
-						0.518
-					],
-					[
-						0.167,
-						0.04
-					]
-				],
-				"ct": {
-					"min": 153,
-					"max": 500
+	"errors": [],
+	"data": [
+		{
+			"id": "afafbcfd-0807-49bc-aa72-289f5ffe4005",
+			"id_v1": "/lights/5",
+			"owner": {
+				"rid": "ea6e48b4-f82d-4700-a3a8-5504ecd07776",
+				"rtype": "device"
+			},
+			"metadata": {
+				"name": "Lamp",
+				"archetype": "sultan_bulb"
+			},
+			"on": {
+				"on": true
+			},
+			"dimming": {
+				"brightness": 100,
+				"min_dim_level": 0.20000000298023224
+			},
+			"dimming_delta": {},
+			"color_temperature": {
+				"mirek": 203,
+				"mirek_valid": true,
+				"mirek_schema": {
+					"mirek_minimum": 153,
+					"mirek_maximum": 500
 				}
 			},
-			"streaming": {
-				"renderer": true,
-				"proxy": true
-			}
-		},
-		"config": {
-			"archetype": "sultanbulb",
-			"function": "mixed",
-			"direction": "omnidirectional",
-			"startup": {
-				"mode": "safety",
-				"configured": true
-			}
-		},
-		"uniqueid": "00:17:88:01:10:54:27:72-0b",
-		"swversion": "67.101.2"
-	},
-	"5": {
-		"state": {
-			"on": true,
-			"bri": 254,
-			"hue": 40615,
-			"sat": 38,
-			"effect": "none",
-			"xy": [
-				0.3469,
-				0.3568
-			],
-			"ct": 203,
-			"alert": "select",
-			"colormode": "ct",
-			"mode": "homeautomation",
-			"reachable": true
-		},
-		"swupdate": {
-			"state": "noupdates",
-			"lastinstall": "2023-02-23T22:38:31"
-		},
-		"type": "Extended color light",
-		"name": "Lamp",
-		"modelid": "LCA003",
-		"manufacturername": "Signify Netherlands B.V.",
-		"productname": "Hue color lamp",
-		"capabilities": {
-			"certified": true,
-			"control": {
-				"mindimlevel": 200,
-				"maxlumen": 800,
-				"colorgamuttype": "C",
-				"colorgamut": [
-					[
-						0.6915,
-						0.3083
-					],
-					[
-						0.17,
-						0.7
-					],
-					[
-						0.1532,
-						0.0475
-					]
+			"color_temperature_delta": {},
+			"color": {
+				"xy": {
+					"x": 0.3469,
+					"y": 0.3568
+				},
+				"gamut": {
+					"red": {
+						"x": 0.6915,
+						"y": 0.3083
+					},
+					"green": {
+						"x": 0.17,
+						"y": 0.7
+					},
+					"blue": {
+						"x": 0.1532,
+						"y": 0.0475
+					}
+				},
+				"gamut_type": "C"
+			},
+			"dynamics": {
+				"status": "none",
+				"status_values": [
+					"none",
+					"dynamic_palette"
 				],
-				"ct": {
-					"min": 153,
-					"max": 500
+				"speed": 0,
+				"speed_valid": false
+			},
+			"alert": {
+				"action_values": [
+					"breathe"
+				]
+			},
+			"signaling": {},
+			"mode": "normal",
+			"effects": {
+				"status_values": [
+					"no_effect",
+					"candle",
+					"fire"
+				],
+				"status": "no_effect",
+				"effect_values": [
+					"no_effect",
+					"candle",
+					"fire"
+				]
+			},
+			"powerup": {
+				"preset": "safety",
+				"configured": true,
+				"on": {
+					"mode": "on",
+					"on": {
+						"on": true
+					}
+				},
+				"dimming": {
+					"mode": "dimming",
+					"dimming": {
+						"brightness": 100
+					}
+				},
+				"color": {
+					"mode": "color_temperature",
+					"color_temperature": {
+						"mirek": 366
+					}
 				}
 			},
-			"streaming": {
-				"renderer": true,
-				"proxy": true
-			}
+			"type": "light"
 		},
-		"config": {
-			"archetype": "sultanbulb",
-			"function": "mixed",
-			"direction": "omnidirectional",
-			"startup": {
-				"mode": "safety",
-				"configured": true
-			}
-		},
-		"uniqueid": "00:17:88:01:08:de:6a:e9-0b",
-		"swversion": "1.101.10",
-		"swconfigid": "4FD50FDB",
-		"productid": "Philips-LCA003-1-A19ECLv6"
-	},
-	"6": {
-		"state": {
-			"on": true,
-			"bri": 254,
-			"hue": 14987,
-			"sat": 141,
-			"effect": "none",
-			"xy": [
-				0.5018,
-				0.4152
-			],
-			"ct": 447,
-			"alert": "select",
-			"colormode": "xy",
-			"mode": "homeautomation",
-			"reachable": false
-		},
-		"swupdate": {
-			"state": "noupdates",
-			"lastinstall": "2022-12-14T22:27:33"
-		},
-		"type": "Extended color light",
-		"name": "Room TV",
-		"modelid": "LCT007",
-		"manufacturername": "Signify Netherlands B.V.",
-		"productname": "Hue color lamp",
-		"capabilities": {
-			"certified": true,
-			"control": {
-				"mindimlevel": 2000,
-				"maxlumen": 800,
-				"colorgamuttype": "B",
-				"colorgamut": [
-					[
-						0.675,
-						0.322
-					],
-					[
-						0.409,
-						0.518
-					],
-					[
-						0.167,
-						0.04
-					]
-				],
-				"ct": {
-					"min": 153,
-					"max": 500
+		{
+			"id": "1c311a8c-1354-499a-a5a3-f6b22af6556b",
+			"id_v1": "/lights/1",
+			"owner": {
+				"rid": "dc16a926-b9f3-4318-b325-4d1bafade7bf",
+				"rtype": "device"
+			},
+			"metadata": {
+				"name": "Room Bed",
+				"archetype": "sultan_bulb"
+			},
+			"on": {
+				"on": false
+			},
+			"dimming": {
+				"brightness": 100,
+				"min_dim_level": 2
+			},
+			"dimming_delta": {},
+			"color_temperature": {
+				"mirek": 230,
+				"mirek_valid": true,
+				"mirek_schema": {
+					"mirek_minimum": 153,
+					"mirek_maximum": 500
 				}
 			},
-			"streaming": {
-				"renderer": true,
-				"proxy": true
-			}
+			"color_temperature_delta": {},
+			"color": {
+				"xy": {
+					"x": 0.367,
+					"y": 0.3707
+				},
+				"gamut": {
+					"red": {
+						"x": 0.675,
+						"y": 0.322
+					},
+					"green": {
+						"x": 0.409,
+						"y": 0.518
+					},
+					"blue": {
+						"x": 0.167,
+						"y": 0.04
+					}
+				},
+				"gamut_type": "B"
+			},
+			"dynamics": {
+				"status": "none",
+				"status_values": [
+					"none",
+					"dynamic_palette"
+				],
+				"speed": 0,
+				"speed_valid": false
+			},
+			"alert": {
+				"action_values": [
+					"breathe"
+				]
+			},
+			"signaling": {},
+			"mode": "normal",
+			"powerup": {
+				"preset": "safety",
+				"configured": true,
+				"on": {
+					"mode": "on",
+					"on": {
+						"on": true
+					}
+				},
+				"dimming": {
+					"mode": "dimming",
+					"dimming": {
+						"brightness": 100
+					}
+				},
+				"color": {
+					"mode": "color_temperature",
+					"color_temperature": {
+						"mirek": 366
+					}
+				}
+			},
+			"type": "light"
 		},
-		"config": {
-			"archetype": "sultanbulb",
-			"function": "mixed",
-			"direction": "omnidirectional",
-			"startup": {
-				"mode": "safety",
-				"configured": true
-			}
-		},
-		"uniqueid": "00:17:88:01:10:54:27:c5-0b",
-		"swversion": "67.101.2"
-	}
+		{
+			"id": "d31fd842-e861-497b-ba8e-56d604ede938",
+			"id_v1": "/lights/6",
+			"owner": {
+				"rid": "f49b20ff-2948-483b-a609-8e968cd13771",
+				"rtype": "device"
+			},
+			"metadata": {
+				"name": "Room TV",
+				"archetype": "sultan_bulb"
+			},
+			"on": {
+				"on": false
+			},
+			"dimming": {
+				"brightness": 100,
+				"min_dim_level": 2
+			},
+			"dimming_delta": {},
+			"color_temperature": {
+				"mirek": 230,
+				"mirek_valid": true,
+				"mirek_schema": {
+					"mirek_minimum": 153,
+					"mirek_maximum": 500
+				}
+			},
+			"color_temperature_delta": {},
+			"color": {
+				"xy": {
+					"x": 0.367,
+					"y": 0.3707
+				},
+				"gamut": {
+					"red": {
+						"x": 0.675,
+						"y": 0.322
+					},
+					"green": {
+						"x": 0.409,
+						"y": 0.518
+					},
+					"blue": {
+						"x": 0.167,
+						"y": 0.04
+					}
+				},
+				"gamut_type": "B"
+			},
+			"dynamics": {
+				"status": "none",
+				"status_values": [
+					"none",
+					"dynamic_palette"
+				],
+				"speed": 0,
+				"speed_valid": false
+			},
+			"alert": {
+				"action_values": [
+					"breathe"
+				]
+			},
+			"signaling": {},
+			"mode": "normal",
+			"powerup": {
+				"preset": "safety",
+				"configured": true,
+				"on": {
+					"mode": "on",
+					"on": {
+						"on": true
+					}
+				},
+				"dimming": {
+					"mode": "dimming",
+					"dimming": {
+						"brightness": 100
+					}
+				},
+				"color": {
+					"mode": "color_temperature",
+					"color_temperature": {
+						"mirek": 366
+					}
+				}
+			},
+			"type": "light"
+		}
+	]
 }
