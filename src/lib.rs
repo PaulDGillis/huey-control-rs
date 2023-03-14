@@ -1,46 +1,32 @@
 use std::collections::HashMap;
-use reqwest::{ClientBuilder, Client};
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use reqwest::{ ClientBuilder, Client };
+use serde::{ Deserialize, Serialize };
+use serde_json::{ Map, Value };
 use uuid::Uuid;
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum DiscoveryError {
-    #[error("Internal request error.")]
-    GetRequest(#[from] reqwest::Error),
-    #[error("Failed to find bridge.")]
-    Failed
-}
-
-#[derive(Error, Debug)]
-pub enum PairError {
-    #[error("Internal request error.")]
-    PostRequest(#[from] reqwest::Error),
+pub enum HueError {
+    #[error("Error sending request")]
+    RequestFailed(#[from] reqwest::Error),
+    #[error("Error parsing response")]
+    Parsing(#[from] serde_json::Error),
     #[error("Link button has not been pressed.")]
     LinkButtonNotPressed,
-    #[error("Failed to find bridge.")]
-    Failed
-}
-
-#[derive(Error, Debug)]
-pub enum ListLightsError {
-    #[error("Internal request error.")]
-    GetRequest(#[from] reqwest::Error),
-    #[error("Failed to find bridge.")]
-    Failed
+    #[error("Invalid json ({msg:?})")]
+    InvalidData {
+        msg: String
+    }
 }
 
 #[derive(Debug)]
 pub struct HueBridge {
-    username: String,
-    ip_addr: String,
+    base_url: String,
     client: Client
 }
 
 impl HueBridge {
-    fn new(username: String, ip_addr: String) -> HueBridge {
+    fn new(username: String, bridge_ip: String) -> HueBridge {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("hue-application-key", username.parse().unwrap());
 
@@ -50,88 +36,92 @@ impl HueBridge {
             .build()
             .expect("Unable to create reqwest client.");
 
-        HueBridge { username, ip_addr, client }
+        let base_url = format!("https://{}", bridge_ip);
+
+        HueBridge { base_url, client }
     }
 
-    fn build_req(&self, url: &str) -> String {
-        format!("https://{}/api/{}{}", self.ip_addr, self.username, url)
-    }
+    pub async fn list_lights(&self) -> Result<Vec<Light>, HueError> {
+        let req = format!("{}{}", self.base_url, "/clip/v2/resource/light");
 
-    pub async fn list_lights(&self) -> Result<Vec<Light>, ListLightsError> {
-        let req = format!("https://{}/{}", self.ip_addr, "/clip/v2/resource/light");
-
-        let lights: Vec<Light> = self.client.get(req)
+        let json_response = self.client.get(req)
             .send()
             .await?
-            .json::<Map<String, Value>>()
-            .await?
-            .iter()
-            .filter_map(|(xkey, xvalue)| {
-                let name: String = xvalue.get("name")?.as_str()?.to_string();
-                let product_name = xvalue.get("productname")?.as_str()?.to_string();
-                let state_opt = xvalue.get("state")?.to_owned();
-                let state: LightState = serde_json::from_value(state_opt).unwrap();
-                Some(Light { 
-                    id: xkey.to_owned(), 
-                    name, 
-                    product_name,
-                    state
-                })
+            .json::<Value>()
+            .await?;
+
+        let lights = serde_json::from_value::<HashMap<String, Value>>(json_response)?["data"]
+            .as_array()
+            .ok_or(HueError::InvalidData { msg: "couldn't parse list_lights data json object".to_string() })?
+            .into_iter()
+            .filter_map(|in_value| {
+                if let Value::Object(x) = in_value {
+                    Some(Light {
+                        id: x["id"].to_string(), 
+                        name: x["metadata"]["name"].to_string(),
+                        is_on: x["on"]["on"].as_bool().unwrap(),
+                    })
+                } else {
+                    None
+                }
             })
             .collect();
 
         Ok(lights)
     }
 
-    pub async fn discover() -> Result::<String, DiscoveryError> {
-        let bridge = reqwest::get("https://discovery.meethue.com/".to_string())
-            .await?
-            .json::<Vec<Map<String, Value>>>()
-            .await?
-            .into_iter()
-            .next()
-            .ok_or(DiscoveryError::Failed)?;
-        
-        let json_obj = &bridge.get("internalipaddress")
-            .ok_or(DiscoveryError::Failed)?;
+    pub async fn discover() -> Result::<String, HueError> {
+        let req = format!("https://discovery.meethue.com/");
 
-        match json_obj {
-            Value::String(ip_addr) => Ok(ip_addr.to_owned()),
-            _ => Err(DiscoveryError::Failed),
-        }
+        let response = reqwest::get(req)
+            .await?
+            .json::<Value>() // Gives back a json array of a single result
+            .await?;
+
+        let bridges = serde_json::from_value::<Vec<HashMap<String, Value>>>(response)?
+            .into_iter()
+            .next() // Check first item exists and move to parsing it
+            .ok_or(HueError::InvalidData { msg: "didn't find any bridges".to_string() })?;
+
+        let bridge = bridges["internalipaddress"].as_str()
+            .ok_or(HueError::InvalidData { msg: "couldn't parse bridge ip address".to_string() })?
+            .to_owned();
+        
+        Ok(bridge)
     }
 
-    pub async fn pair(bridge_ip: String) -> Result<HueBridge, PairError> {
-        let req = format!("https://{}/api", bridge_ip);
-
+    pub async fn pair(bridge_ip: String) -> Result<HueBridge, HueError> {
         let client = ClientBuilder::new()
             .danger_accept_invalid_certs(true)
             .build()?;
+
+        let req = format!("https://{}/api", bridge_ip);
 
         let response = client.post(req)
             .json(&serde_json::json!({ "devicetype": Uuid::new_v4().to_string() }))
             .send()
             .await?
-            .json::<Vec<Map<String, Value>>>()
-            .await?
+            .json::<Value>()
+            .await?;
+            
+        let json_obj = serde_json::from_value::<Vec<Map<String, Value>>>(response)?
             .into_iter()
             .next()
-            .ok_or(PairError::Failed)?;
+            .ok_or(
+                HueError::InvalidData { msg: "Failed to parse pair result.".to_string() }
+            )?;
+            
+        if let Value::Object(succes_obj) = &json_obj["success"] {
+            let username = succes_obj["username"].as_str()
+                .ok_or(
+                    HueError::InvalidData { msg: "Failed to parse username pair result.".to_string() }
+                )?.to_string();
 
-        let json_obj = response
-            .get("success")
-            .ok_or(PairError::LinkButtonNotPressed)?
-            .get("username")
-            .ok_or(PairError::Failed)?;
-
-        match json_obj {
-            Value::String(username) => Ok(
-                HueBridge::new(
-                    username.to_owned(),
-                    bridge_ip
-                )
-            ),
-            _ => Err(PairError::Failed)
+            Ok(HueBridge::new(username, bridge_ip))
+        } else if json_obj["error"]["type"].as_i64().unwrap_or(0) == 101 {
+            Err(HueError::LinkButtonNotPressed)
+        } else {
+            Err(HueError::InvalidData { msg: "Unknown error occured".to_string() })
         }
     }
 }
@@ -140,19 +130,7 @@ impl HueBridge {
 pub struct Light {
     id: String,
     name: String,
-    product_name: String,
-    state: LightState
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LightState {
-    on: bool,
-    bri: u32,
-    hue: u32,
-    sat: u32,
-    ct: u32,
-    #[serde(rename = "colormode")]
-    color_mode: String
+    is_on: bool
 }
 
 #[cfg(test)]
@@ -165,6 +143,7 @@ mod tests {
     #[tokio::test]
     async fn discover_bridge() {
         let result = HueBridge::discover().await;
+        dbg!(&result);
         assert_eq!(true, result.is_ok());
         assert_eq!(BRIDGE_IP, result.unwrap());
     }
@@ -173,6 +152,7 @@ mod tests {
     #[tokio::test]
     async fn pair_bridge() {
         let result = HueBridge::pair(BRIDGE_IP.to_string()).await;
+        dbg!(&result);
         assert_eq!(result.is_ok(), true);
     }
 
@@ -184,9 +164,7 @@ mod tests {
         );
 
         let result = bridge.list_lights().await;
+        dbg!(&result);
         assert_eq!(result.is_ok(), true);
-        if let Ok(lights) = result {
-            println!("{:?}", lights);
-        }
     }
 }
