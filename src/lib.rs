@@ -8,7 +8,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum HueError {
     #[error("Error sending request")]
-    RequestFailed(#[from] reqwest::Error),
+    Request(#[from] reqwest::Error),
     #[error("Error parsing response")]
     Parsing(#[from] serde_json::Error),
     #[error("Link button has not been pressed.")]
@@ -16,7 +16,9 @@ pub enum HueError {
     #[error("Invalid json ({msg:?})")]
     InvalidData {
         msg: String
-    }
+    },
+    #[error("Unable to create reqwest client.")]
+    ClientCreate
 }
 
 #[derive(Debug)]
@@ -26,7 +28,7 @@ pub struct HueBridge {
 }
 
 impl HueBridge {
-    fn new(username: String, bridge_ip: String) -> HueBridge {
+    fn new(username: String, bridge_ip: String) -> Result<HueBridge, HueError> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("hue-application-key", username.parse().unwrap());
 
@@ -34,11 +36,11 @@ impl HueBridge {
             .danger_accept_invalid_certs(true)
             .default_headers(headers)
             .build()
-            .expect("Unable to create reqwest client.");
+            .map_err(|_| { HueError::ClientCreate })?;
 
         let base_url = format!("https://{}", bridge_ip);
 
-        HueBridge { base_url, client }
+        Ok(HueBridge { base_url, client })
     }
 
     pub async fn list_lights(&self) -> Result<Vec<Light>, HueError> {
@@ -52,14 +54,20 @@ impl HueBridge {
 
         let lights = serde_json::from_value::<HashMap<String, Value>>(json_response)?["data"]
             .as_array()
-            .ok_or(HueError::InvalidData { msg: "couldn't parse list_lights data json object".to_string() })?
+            .ok_or(HueError::InvalidData { msg: "couldn't parse list_lights data json object".into() })?
             .into_iter()
             .filter_map(|in_value| {
                 if let Value::Object(x) = in_value {
                     Some(Light {
-                        id: x["id"].to_string(), 
-                        name: x["metadata"]["name"].to_string(),
-                        is_on: x["on"]["on"].as_bool().unwrap(),
+                        id: x["id"].as_str()?.into(), 
+                        name: x["metadata"]["name"].as_str()?.into(),
+                        is_on: x["on"]["on"].as_bool()?,
+                        brightness: x["dimming"]["brightness"].as_f64()?,
+                        min_brightness: x["dimming"]["min_dim_level"].as_f64()?,
+                        color: Color(
+                            x["color"]["xy"]["x"].as_f64()?,
+                            x["color"]["xy"]["y"].as_f64()?
+                        )
                     })
                 } else {
                     None
@@ -81,10 +89,10 @@ impl HueBridge {
         let bridges = serde_json::from_value::<Vec<HashMap<String, Value>>>(response)?
             .into_iter()
             .next() // Check first item exists and move to parsing it
-            .ok_or(HueError::InvalidData { msg: "didn't find any bridges".to_string() })?;
+            .ok_or(HueError::InvalidData { msg: "didn't find any bridges".into() })?;
 
         let bridge = bridges["internalipaddress"].as_str()
-            .ok_or(HueError::InvalidData { msg: "couldn't parse bridge ip address".to_string() })?
+            .ok_or(HueError::InvalidData { msg: "couldn't parse bridge ip address".into() })?
             .to_owned();
         
         Ok(bridge)
@@ -117,7 +125,7 @@ impl HueBridge {
                     HueError::InvalidData { msg: "Failed to parse username pair result.".to_string() }
                 )?.to_string();
 
-            Ok(HueBridge::new(username, bridge_ip))
+            HueBridge::new(username, bridge_ip)
         } else if json_obj["error"]["type"].as_i64().unwrap_or(0) == 101 {
             Err(HueError::LinkButtonNotPressed)
         } else {
@@ -126,12 +134,17 @@ impl HueBridge {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct Light {
     id: String,
     name: String,
-    is_on: bool
+    is_on: bool,
+    brightness: f64,
+    min_brightness: f64,
+    color: Color
 }
+#[derive(Debug)]
+pub struct Color(f64, f64);
 
 #[cfg(test)]
 mod tests {
@@ -161,7 +174,7 @@ mod tests {
         let bridge = HueBridge::new(
             BRIDGE_KEY.to_string(),
             BRIDGE_IP.to_string()
-        );
+        ).unwrap();
 
         let result = bridge.list_lights().await;
         dbg!(&result);
