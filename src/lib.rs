@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use reqwest::{ ClientBuilder, Client };
-use serde::Serialize;
-use serde_json::{ Map, Value, json };
+use serde_json::{ Map, Value };
 use uuid::Uuid;
 use thiserror::Error;
+
+mod light;
 
 #[derive(Error, Debug)]
 pub enum HueError {
@@ -41,45 +42,6 @@ impl HueBridge {
         let base_url = format!("https://{}", bridge_ip);
 
         Ok(HueBridge { base_url, client })
-    }
-
-    pub async fn execute(&self, light_transaction: Result<LightTransaction, HueError>) -> Result<Value, HueError> {
-        light_transaction?.execute(&self.client, self.base_url.clone()).await
-    }
-
-    pub async fn list_lights(&self) -> Result<Vec<Light>, HueError> {
-        let req = format!("{}{}", self.base_url, "/clip/v2/resource/light");
-
-        let json_response = self.client.get(req)
-            .send()
-            .await?
-            .json::<Value>()
-            .await?;
-
-        let lights = serde_json::from_value::<HashMap<String, Value>>(json_response)?["data"]
-            .as_array()
-            .ok_or(HueError::InvalidData { msg: "couldn't parse list_lights data json object".into() })?
-            .into_iter()
-            .filter_map(|in_value| {
-                if let Value::Object(x) = in_value {
-                    Some(Light {
-                        id: x["id"].as_str()?.into(), 
-                        name: x["metadata"]["name"].as_str()?.into(),
-                        is_on: x["on"]["on"].as_bool()?,
-                        brightness: x["dimming"]["brightness"].as_f64()?,
-                        min_brightness: x["dimming"]["min_dim_level"].as_f64()?,
-                        color: Color(
-                            x["color"]["xy"]["x"].as_f64()?,
-                            x["color"]["xy"]["y"].as_f64()?
-                        )
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        Ok(lights)
     }
 
     pub async fn discover() -> Result::<String, HueError> {
@@ -138,73 +100,10 @@ impl HueBridge {
     }
 }
 
-#[derive(Debug)]
-pub struct Light {
-    id: String,
-    name: String,
-    is_on: bool,
-    brightness: f64,
-    min_brightness: f64,
-    color: Color
-}
-#[derive(Debug, Clone, Serialize)]
-pub struct Color(f64, f64);
-
-#[derive(Debug)]
-pub struct LightTransaction {
-    light_id: String,
-    body: Value
-}
-
-impl LightTransaction {
-    async fn execute(&self, client: &Client, base_url: String) -> Result<Value, HueError> {
-        let mut req = base_url;
-        req.push_str("/clip/v2/resource/light/");
-        req.push_str(&self.light_id);
-
-        dbg!(&req);
-        dbg!(&self.body);
-
-        let result = client.put(req)
-            .json(&self.body)
-            .send()
-            .await?
-            .json::<Value>()
-            .await?;
-        dbg!(&result);
-        Ok(result)
-    }
-}
-
-impl Light {
-    fn toggle_state(&self) -> Result<LightTransaction, HueError> {
-        let body = json!({ "on": { "on": !self.is_on } });
-        Ok(LightTransaction { light_id: self.id.clone(), body })
-    }
-
-    fn change_color(&self, color: Option<Color>, brightness: Option<f64>) -> Result<LightTransaction, HueError> {
-
-        let Color(x, y) = color.unwrap_or(self.color.clone());
-
-        let body = json!({ 
-            "dimming": { 
-                "brightness": brightness.unwrap_or(50.0), 
-            },
-            "color": {
-                "xy": {
-                    "x": x,
-                    "y": y
-                }
-            } 
-        });
-        dbg!(&body);
-        Ok(LightTransaction { light_id: self.id.clone(), body })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use light::Light;
 
     static BRIDGE_IP: &str = "10.0.99.56";
     static BRIDGE_KEY: &str = "9XkuVXXI4cxX9SpoCJosjbqvEUZncoX3TuvweAlS";
@@ -232,7 +131,7 @@ mod tests {
             BRIDGE_IP.to_string()
         ).unwrap();
 
-        let result = bridge.list_lights().await;
+        let result = Light::list_lights(&bridge).await;
         dbg!(&result);
         assert_eq!(result.is_ok(), true);
     }
@@ -244,13 +143,15 @@ mod tests {
             BRIDGE_IP.to_string()
         ).unwrap();
 
-        let lights_res = &bridge.list_lights().await;
+        let lights_res = Light::list_lights(&bridge).await;
         let lights = lights_res.as_ref().unwrap();
         let light = lights.first().unwrap();
     
-        //let result = bridge.execute(light.toggle_state()).await;
-        //let result = bridge.execute(light.change_color(Some(Color(0.4605, 0.2255)), None)).await;
-        let result = bridge.execute(light.change_color(None, Some(50.0))).await;
+        //let result = light.toggle_power()
+        //let result = light.change_color(Some(Color(0.4005, 0.2255)), None)
+        let result = light.change_color(None, Some(100.0))
+            .on(&bridge)
+            .await;
         dbg!(&result);
         assert_eq!(result.is_ok(), true);
     }
