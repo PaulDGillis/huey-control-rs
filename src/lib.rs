@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use reqwest::{ ClientBuilder, Client };
-use serde_json::{ Map, Value };
+use serde_json::{ Map, Value, json };
 use uuid::Uuid;
 use thiserror::Error;
 
@@ -72,7 +72,7 @@ impl HueBridge {
         let req = format!("https://{}/api", bridge_ip);
 
         let response = client.post(req)
-            .json(&serde_json::json!({ "devicetype": Uuid::new_v4().to_string() }))
+            .json(&json!({ "devicetype": Uuid::new_v4().to_string() }))
             .send()
             .await?
             .json::<Value>()
@@ -82,20 +82,19 @@ impl HueBridge {
             .into_iter()
             .next()
             .ok_or(
-                HueError::InvalidData { msg: "Failed to parse pair result.".to_string() }
+                HueError::InvalidData { msg: "Failed to parse pair result.".into() }
             )?;
             
         if let Value::Object(succes_obj) = &json_obj["success"] {
-            let username = succes_obj["username"].as_str()
-                .ok_or(
-                    HueError::InvalidData { msg: "Failed to parse username pair result.".to_string() }
-                )?.to_string();
+            let username = succes_obj["username"]
+                .as_str()
+                .ok_or(HueError::InvalidData { msg: "Failed to parse username pair result.".to_string() })?.into();
 
             HueBridge::new(username, bridge_ip)
         } else if json_obj["error"]["type"].as_i64().unwrap_or(0) == 101 {
             Err(HueError::LinkButtonNotPressed)
         } else {
-            Err(HueError::InvalidData { msg: "Unknown error occured".to_string() })
+            Err(HueError::InvalidData { msg: "Unknown error occured".into() })
         }
     }
 }
@@ -103,7 +102,8 @@ impl HueBridge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use light::Light;
+    #[allow(unused_imports)]
+    use light::{ Color, Light };
 
     static BRIDGE_IP: &str = "10.0.99.56";
     static BRIDGE_KEY: &str = "9XkuVXXI4cxX9SpoCJosjbqvEUZncoX3TuvweAlS";
@@ -111,7 +111,6 @@ mod tests {
     #[tokio::test]
     async fn discover_bridge() {
         let result = HueBridge::discover().await;
-        dbg!(&result);
         assert_eq!(true, result.is_ok());
         assert_eq!(BRIDGE_IP, result.unwrap());
     }
@@ -120,39 +119,29 @@ mod tests {
     #[tokio::test]
     async fn pair_bridge() {
         let result = HueBridge::pair(BRIDGE_IP.to_string()).await;
-        dbg!(&result);
         assert_eq!(result.is_ok(), true);
     }
 
     #[tokio::test]
     async fn list_lights() {
-        let bridge = HueBridge::new(
-            BRIDGE_KEY.to_string(),
-            BRIDGE_IP.to_string()
-        ).unwrap();
+        let bridge = HueBridge::new(BRIDGE_KEY.into(), BRIDGE_IP.into()).unwrap();
 
         let result = Light::list_lights(&bridge).await;
-        dbg!(&result);
         assert_eq!(result.is_ok(), true);
     }
 
     #[tokio::test]
     async fn toggle_light() {
-        let bridge = HueBridge::new(
-            BRIDGE_KEY.to_string(),
-            BRIDGE_IP.to_string()
-        ).unwrap();
-
-        let lights_res = Light::list_lights(&bridge).await;
-        let lights = lights_res.as_ref().unwrap();
-        let light = lights.first().unwrap();
+        let bridge = HueBridge::new(BRIDGE_KEY.into(), BRIDGE_IP.into()).unwrap();
+        let lights = Light::list_lights(&bridge).await.unwrap();
     
-        //let result = light.toggle_power()
-        //let result = light.change_color(Some(Color(0.4005, 0.2255)), None)
-        let result = light.change_color(None, Some(100.0))
-            .on(&bridge)
-            .await;
-        dbg!(&result);
-        assert_eq!(result.is_ok(), true);
+        for light in lights {
+            let result = light.toggle_power()
+            //let result = light.change_color(Some(Color(0.4005, 0.2255)), None)
+            //let result = light.change_color(None, Some(100.0))
+                .on(&bridge)
+                .await;
+            assert_eq!(result.is_ok(), true);
+        }
     }
 }
