@@ -4,7 +4,7 @@ use serde_json::{ Map, Value, json };
 use uuid::Uuid;
 use thiserror::Error;
 
-mod light;
+pub mod light;
 
 #[derive(Error, Debug)]
 pub enum HueError {
@@ -29,7 +29,7 @@ pub struct HueBridge {
 }
 
 impl HueBridge {
-    fn new(username: String, bridge_ip: String) -> Result<HueBridge, HueError> {
+    pub fn new(username: String, bridge_ip: String) -> Result<HueBridge, HueError> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("hue-application-key", username.parse().unwrap());
 
@@ -85,7 +85,11 @@ impl HueBridge {
                 HueError::InvalidData { msg: "Failed to parse pair result.".into() }
             )?;
             
-        if let Value::Object(succes_obj) = &json_obj["success"] {
+        if json_obj.contains_key("success") {
+            let succes_obj = &json_obj["success"]
+                .as_object()
+                .ok_or(HueError::InvalidData { msg: "Failed to parse success".into() })?;
+
             let username = succes_obj["username"]
                 .as_str()
                 .ok_or(HueError::InvalidData { msg: "Failed to parse username pair result.".to_string() })?.into();

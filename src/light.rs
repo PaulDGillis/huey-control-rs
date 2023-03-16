@@ -56,13 +56,21 @@ impl Light {
     }
 
     pub fn toggle_power(&self) -> LightTransaction {
+        Light::toggle_power_id(self.id.clone(), !self.is_on)
+    }
+
+    pub fn toggle_power_id(id: String, is_on: bool) -> LightTransaction {
         LightTransaction { 
-            light_id: self.id.clone(), 
-            body: json!({ "on": { "on": !self.is_on } })
+            light_id: id,
+            body: json!({ "on": { "on": is_on } })
         }
     }
 
     pub fn change_color(&self, color: Option<Color>, brightness: Option<f64>) -> LightTransaction {
+        Light::change_color_id(self.id.clone(), color, brightness, Some(self.min_brightness))
+    }
+
+    pub fn change_color_id(light_id: String, color: Option<Color>, brightness: Option<f64>, min_brightness: Option<f64>) -> LightTransaction {
         let mut body = serde_json::Map::new();
 
         if let Some(Color(x, y)) = color {
@@ -73,13 +81,13 @@ impl Light {
         }
 
         if let Some(bri) = brightness {
-            if (self.min_brightness..=100.0).contains(&bri) {
+            if (min_brightness.unwrap_or(2.0)..=100.0).contains(&bri) {
                 body.insert("dimming".into(), json!({ "brightness": bri }));
             }
         }
 
         LightTransaction { 
-            light_id: self.id.clone(), 
+            light_id,
             body: body.into()
         }
     }
@@ -98,9 +106,6 @@ impl LightTransaction {
         let mut req = bridge.base_url.clone();
         req.push_str("/clip/v2/resource/light/");
         req.push_str(&self.light_id);
-
-        dbg!(&req);
-        dbg!(&self.body);
 
         bridge.client
             .put(req)
