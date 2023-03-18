@@ -10,20 +10,21 @@ pub struct Color(pub f64, pub f64);
 #[derive(Debug)]
 pub struct Light {
     #[allow(unused_assignments)]
-    id: String,
-    name: String,
-    is_on: bool,
-    brightness: f64,
+    pub id: String,
+    pub name: String,
+    pub is_on: bool,
+    pub brightness: f64,
     min_brightness: f64,
-    color: Color
+    pub color: Color
 }
 
 #[allow(dead_code)]
 impl Light {
     pub async fn list_lights(bridge: &HueBridge) -> Result<Vec<Light>, HueError> {
-        let req = format!("{}{}", bridge.base_url, "/clip/v2/resource/light");
+        let req = format!("https://{}{}", bridge.bridge_ip, "/clip/v2/resource/light");
 
-        let json_response = bridge.client.get(req)
+        let client = bridge.build_client()?;
+        let json_response = client.get(req)
             .send()
             .await?
             .json::<Value>()
@@ -103,11 +104,12 @@ pub struct LightTransaction {
 #[allow(dead_code)]
 impl LightTransaction {
     pub async fn on(&self, bridge: &HueBridge) -> Result<(), HueError> {
-        let mut req = bridge.base_url.clone();
+        let mut req = format!("https://{}", bridge.bridge_ip);
         req.push_str("/clip/v2/resource/light/");
         req.push_str(&self.light_id);
 
-        bridge.client
+        let client = bridge.build_client()?;
+        client
             .put(req)
             .json(&self.body)
             .send()

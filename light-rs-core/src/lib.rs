@@ -24,14 +24,19 @@ pub enum HueError {
 
 #[derive(Debug)]
 pub struct HueBridge {
-    base_url: String,
-    client: Client
+    pub bridge_ip: String,
+    pub username: String,
+    // client: Client
 }
 
 impl HueBridge {
-    pub fn new(username: String, bridge_ip: String) -> Result<HueBridge, HueError> {
+    pub fn new(username: String, bridge_ip: String) -> HueBridge {
+        HueBridge { bridge_ip, username } //, client })
+    }
+
+    pub fn build_client(&self) -> Result<reqwest::Client, HueError> {
         let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("hue-application-key", username.parse().unwrap());
+        headers.insert("hue-application-key", self.username.parse().unwrap());
 
         let client = ClientBuilder::new()
             .danger_accept_invalid_certs(true)
@@ -39,9 +44,7 @@ impl HueBridge {
             .build()
             .map_err(|_| { HueError::ClientCreate })?;
 
-        let base_url = format!("https://{}", bridge_ip);
-
-        Ok(HueBridge { base_url, client })
+        Ok(client)
     }
 
     pub async fn discover() -> Result::<String, HueError> {
@@ -94,7 +97,7 @@ impl HueBridge {
                 .as_str()
                 .ok_or(HueError::InvalidData { msg: "Failed to parse username pair result.".to_string() })?.into();
 
-            HueBridge::new(username, bridge_ip)
+            Ok(HueBridge::new(username, bridge_ip))
         } else if json_obj["error"]["type"].as_i64().unwrap_or(0) == 101 {
             Err(HueError::LinkButtonNotPressed)
         } else {
@@ -128,7 +131,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_lights() {
-        let bridge = HueBridge::new(BRIDGE_KEY.into(), BRIDGE_IP.into()).unwrap();
+        let bridge = HueBridge::new(BRIDGE_KEY.into(), BRIDGE_IP.into());
 
         let result = Light::list_lights(&bridge).await;
         assert_eq!(result.is_ok(), true);
@@ -136,7 +139,7 @@ mod tests {
 
     #[tokio::test]
     async fn toggle_light() {
-        let bridge = HueBridge::new(BRIDGE_KEY.into(), BRIDGE_IP.into()).unwrap();
+        let bridge = HueBridge::new(BRIDGE_KEY.into(), BRIDGE_IP.into());
         let lights = Light::list_lights(&bridge).await.unwrap();
     
         for light in lights {
