@@ -57,13 +57,15 @@ impl MyApp {
         Promise::spawn_async(async move { HueBridge::discover().await })
     }
 
-    fn pair_bridge(bridge_ip: String) -> Promise<Result<HueBridge, HueError>> {
+    fn pair_bridge(bridge_ip: &String) -> Promise<Result<HueBridge, HueError>> {
+        let bridge_ip = bridge_ip.clone();
         Promise::spawn_async(async move { HueBridge::pair(bridge_ip).await })
     }
 
-    fn list_lights(bridge_ip: String, username: String) -> Promise<Result<Vec<Light>, HueError>> {
+    fn list_lights(bridge: &HueBridge) -> Promise<Result<Vec<Light>, HueError>> {
+        let bridge = bridge.clone();
         Promise::spawn_async(async move {
-            let bridge = HueBridge::new(bridge_ip, username);
+            let bridge = HueBridge::new(bridge.bridge_ip, bridge.username);
             Light::list_lights(&bridge).await
         })
     }
@@ -87,24 +89,23 @@ impl eframe::App for MyApp {
                                         });
                                     });
                                 },
-                                Some(Err(HueError::Uninitialized)) => {
-                                    self.lights = Self::list_lights(bridge_ip.clone(), bridge.username.clone());
-                                    ui.spinner();
-                                },
+                                Some(Err(HueError::Uninitialized)) => { self.lights = Self::list_lights(bridge); },
                                 _ => { ui.spinner(); }
                             }
                         },
-                        Some(Err(HueError::Uninitialized)) => {
-                            self.bridge_key = Self::pair_bridge(bridge_ip.clone());
-                            ui.spinner();
+                        Some(Err(HueError::Uninitialized)) => { self.bridge_key = Self::pair_bridge(bridge_ip); },
+                        Some(Err(_)) => {
+                            ui.vertical(|ui| {
+                                ui.spinner();
+                                if ui.button("Retry?").clicked() {
+                                    self.bridge_key = Self::pair_bridge(bridge_ip);
+                                }
+                            });
                         },
                         _ => { ui.spinner(); }
                     }
                 },
-                Some(Err(HueError::Uninitialized)) => {
-                    self.bridge_ip = Self::discover_bridge();
-                    ui.spinner();
-                },
+                Some(Err(HueError::Uninitialized)) => { self.bridge_ip = Self::discover_bridge(); },
                 _ => { ui.spinner(); }
             }
         });
