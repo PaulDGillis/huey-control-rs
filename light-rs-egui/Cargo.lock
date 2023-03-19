@@ -1331,10 +1331,12 @@ dependencies = [
 name = "light-rs-core"
 version = "0.1.0"
 dependencies = [
+ "poll-promise",
  "reqwest",
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
  "uuid",
 ]
 

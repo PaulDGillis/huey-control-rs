@@ -1,45 +1,29 @@
-use std::sync::Arc;
-
-use eframe::egui::Widget;
-use light_rs_core::{light::Light, HueBridge, HueError};
+use light_rs_core::{light::Light, HueBridge};
 use poll_promise::Promise;
 
-struct LightView {
-    light_id: Arc<String>,
-    name: String,
-    is_on: bool,
-    bridge: Arc<(String, String)>
+use crate::toggle_switch::toggle_ui;
+
+fn toggle_light(light: &mut Light, bridge: &HueBridge) -> Promise<Option<bool>> {
+    let light_id = light.id.clone();
+    let next_is_on = !light.is_on;
+    let bridge = bridge.clone();
+    light.is_on = next_is_on;
+
+    Promise::spawn_async(async move { 
+        Light::toggle_power_id(light_id.to_string(), next_is_on).on(&bridge).await.map(|_| { next_is_on }).ok()
+    })
 }
 
-impl LightView {
-    pub fn new(light: &Light, bridge: &HueBridge) -> Self {
-        Self {
-            light_id: Arc::new(light.id.clone()),
-            name: light.name.clone(),
-            is_on: light.is_on,
-            bridge: Arc::new((bridge.username.clone(), bridge.bridge_ip.clone()))
+pub fn ui(light: &mut Light, bridge: &HueBridge, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
+    ui.horizontal(|ui| {
+        let mut is_on = false;
+        if let Some(Some(is_on_rf)) = light.toggle_promise.ready() {
+            is_on = is_on_rf.clone();
         }
-    }
+        ui.label(&light.name);
 
-    fn toggle_light(&self) -> Promise<Result<(), HueError>> {
-        let light_id = self.light_id.clone();
-        let is_on = self.is_on;
-        let bridge = self.bridge.clone();
-        Promise::spawn_async(async move {
-            let bridge = HueBridge::new(bridge.0.to_string(), bridge.1.to_string());
-            Light::toggle_power_id(light_id.to_string(), !is_on).on(&bridge).await
-        })
-    }
-}
-
-impl Widget for LightView {
-    fn ui(self, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
-        ui.horizontal(|ui| {
-            ui.label(self.name);
-
-            if ui.button("toggle").clicked() {
-                self.toggle_light();
-            }
-        }).response
-    }
+        if toggle_ui(ui, is_on).clicked() {
+            light.toggle_promise = toggle_light(light, bridge);
+        }
+    }).response
 }

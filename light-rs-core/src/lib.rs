@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use reqwest::{ ClientBuilder, Client };
+use reqwest::ClientBuilder;
 use serde_json::{ Map, Value, json };
 use uuid::Uuid;
 use thiserror::Error;
@@ -19,19 +19,20 @@ pub enum HueError {
         msg: String
     },
     #[error("Unable to create reqwest client.")]
-    ClientCreate
+    ClientCreate,
+    #[error("Unable to initialize.")]
+    Uninitialized
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HueBridge {
     pub bridge_ip: String,
-    pub username: String,
-    // client: Client
+    pub username: String
 }
 
 impl HueBridge {
-    pub fn new(username: String, bridge_ip: String) -> HueBridge {
-        HueBridge { bridge_ip, username } //, client })
+    pub fn new(bridge_ip: String, username: String) -> HueBridge {
+        HueBridge { bridge_ip, username }
     }
 
     pub fn build_client(&self) -> Result<reqwest::Client, HueError> {
@@ -97,7 +98,7 @@ impl HueBridge {
                 .as_str()
                 .ok_or(HueError::InvalidData { msg: "Failed to parse username pair result.".to_string() })?.into();
 
-            Ok(HueBridge::new(username, bridge_ip))
+            Ok(HueBridge::new(bridge_ip, username))
         } else if json_obj["error"]["type"].as_i64().unwrap_or(0) == 101 {
             Err(HueError::LinkButtonNotPressed)
         } else {
@@ -131,7 +132,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_lights() {
-        let bridge = HueBridge::new(BRIDGE_KEY.into(), BRIDGE_IP.into());
+        let bridge = HueBridge::new(BRIDGE_IP.into(), BRIDGE_KEY.into());
 
         let result = Light::list_lights(&bridge).await;
         assert_eq!(result.is_ok(), true);
@@ -139,7 +140,7 @@ mod tests {
 
     #[tokio::test]
     async fn toggle_light() {
-        let bridge = HueBridge::new(BRIDGE_KEY.into(), BRIDGE_IP.into());
+        let bridge = HueBridge::new(BRIDGE_IP.into(), BRIDGE_KEY.into());
         let lights = Light::list_lights(&bridge).await.unwrap();
     
         for light in lights {

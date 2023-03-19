@@ -9,5 +9,5 @@ edition = "2021"
 light-rs-core = { path = "../light-rs-core/" }
 eframe = { version = "0.21.3", features = [ "persistence" ] }
 tracing-subscriber = "0.3.16"
-poll-promise = { version = "0.2", features = [ "tokio" ] }
 tokio = { version = "1.26.0", features = ["full"] }
+poll-promise = { version = "0.2.0", features = ["tokio"] }

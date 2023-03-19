@@ -1,3 +1,4 @@
+use poll_promise::Promise;
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -7,7 +8,6 @@ use crate::{HueError, HueBridge};
 pub struct Color(pub f64, pub f64);
 
 #[allow(dead_code)]
-#[derive(Debug)]
 pub struct Light {
     #[allow(unused_assignments)]
     pub id: String,
@@ -15,7 +15,8 @@ pub struct Light {
     pub is_on: bool,
     pub brightness: f64,
     min_brightness: f64,
-    pub color: Color
+    pub color: Color,
+    pub toggle_promise: Promise<Option<bool>>,
 }
 
 #[allow(dead_code)]
@@ -36,16 +37,18 @@ impl Light {
             .into_iter()
             .filter_map(|in_value| {
                 if let Value::Object(x) = in_value {
+                    let is_on = x["on"]["on"].as_bool()?;
                     Some(Light {
                         id: x["id"].as_str()?.into(), 
                         name: x["metadata"]["name"].as_str()?.into(),
-                        is_on: x["on"]["on"].as_bool()?,
+                        is_on,
                         brightness: x["dimming"]["brightness"].as_f64()?,
                         min_brightness: x["dimming"]["min_dim_level"].as_f64()?,
                         color: Color(
                             x["color"]["xy"]["x"].as_f64()?,
                             x["color"]["xy"]["y"].as_f64()?
-                        )
+                        ),
+                        toggle_promise: Promise::from_ready(Some(is_on))
                     })
                 } else {
                     None
