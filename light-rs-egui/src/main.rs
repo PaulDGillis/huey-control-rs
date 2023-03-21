@@ -6,7 +6,7 @@ use eframe::{egui, Storage, epaint::{Pos2, Vec2}};
 use light_rs_core::{HueError, HueBridge};
 use light_view::LightsViewModel;
 use poll_promise::Promise;
-use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent};
+use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent, Rectangle};
 
 mod light_view;
 mod toggle_switch;
@@ -87,7 +87,8 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Ok(event) = TrayEvent::receiver().try_recv() {
             if event.event == ClickEvent::Left {
-                let pos = Pos2::new((event.x as f32) - (WIDTH / 2.0), (event.y as f32) - 80.0 - HEIGHT); // - (HEIGHT / 2.0));
+                let size = _frame.info().window_info.monitor_size.unwrap();
+                let pos = Pos2::new((event.x as f32) - (WIDTH / 2.0), (size.y as f32) - 80.0 - HEIGHT - (HEIGHT / 2.0));
                 _frame.set_window_pos(pos);
                 
                 let state = !self.is_visible;

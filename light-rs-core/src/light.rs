@@ -66,6 +66,7 @@ impl ColorXY {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct Light {
     #[allow(unused_assignments)]
     pub id: String,
@@ -78,7 +79,7 @@ pub struct Light {
 
 #[allow(dead_code)]
 impl Light {
-    pub async fn list_lights(bridge: &HueBridge) -> Result<Vec<Light>, HueError> {
+    pub async fn list_lights(bridge: HueBridge) -> Result<Vec<Light>, HueError> {
         let req = format!("https://{}{}", bridge.bridge_ip, "/clip/v2/resource/light");
 
         let client = bridge.build_client()?;
