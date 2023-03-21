@@ -1,11 +1,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use eframe::{egui, Storage};
-use light_rs_core::{HueError, HueBridge, light::Light};
+use std::time::Duration;
+
+use eframe::{egui, Storage, epaint::{Pos2, Vec2}};
+use light_rs_core::{HueError, HueBridge};
+use light_view::LightsViewModel;
 use poll_promise::Promise;
+use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent};
 
 mod light_view;
 mod toggle_switch;
+
+const WIDTH: f32 = 300.0;
+const HEIGHT: f32 = 200.0;
 
 #[tokio::main]
 async fn main() -> Result<(), eframe::Error> {
@@ -13,9 +20,17 @@ async fn main() -> Result<(), eframe::Error> {
     tracing_subscriber::fmt::init();
 
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(320.0, 240.0)),
+        resizable: false,
+        decorated: false,
+        min_window_size: Some(Vec2::new(WIDTH, HEIGHT)),
+        max_window_size: Some(Vec2::new(WIDTH, HEIGHT)),
         ..Default::default()
     };
+
+    let _tray_icon = TrayIconBuilder::new()
+        .with_tooltip("system-tray - tray icon library!")
+        .build()
+        .unwrap();
 
     eframe::run_native(
         "Light-rs",
@@ -25,9 +40,9 @@ async fn main() -> Result<(), eframe::Error> {
 }
 
 struct MyApp {
-    bridge_ip: Promise<Result<String, HueError>>,
-    bridge_key: Promise<Result<HueBridge, HueError>>,
-    lights: Promise<Result<Vec<Light>, HueError>>,
+    bridge_ip: Option<Promise<Result<String, HueError>>>,
+    bridge: Option<Promise<Result<HueBridge, HueError>>>,
+    light_viewmodel: LightsViewModel
 }
 
 const BRIDGE_IP_KEY: &'static str = "bridge_ip";
@@ -35,91 +50,87 @@ const BRIDGE_KEY_KEY: &'static str = "bridge_key";
 
 impl MyApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> MyApp {
-        let mut init_bridge_ip = Err(HueError::Uninitialized);
-        let mut init_bridge = Err(HueError::Uninitialized);
+        let mut init_bridge_ip = None;
+        let mut bridge = None;
         if let Some(store) = _cc.storage {
             if let Some(bridge_ip) = store.get_string(BRIDGE_IP_KEY) {
-                init_bridge_ip = Ok(bridge_ip.clone());
+                init_bridge_ip = Some(Promise::from_ready(Ok(bridge_ip.clone())));
                 if let Some(bridge_key) = store.get_string(BRIDGE_KEY_KEY) {
-                    init_bridge = Ok(HueBridge::new(bridge_ip.clone(), bridge_key));
+                    bridge = Some(
+                        Promise::from_ready(
+                            Ok(HueBridge::new(bridge_ip.clone(), bridge_key))
+                        )
+                    );
                 }
             }
         }
 
         MyApp {
-            bridge_ip: Promise::from_ready(init_bridge_ip),
-            bridge_key: Promise::from_ready(init_bridge),
-            lights: Promise::from_ready(Err(HueError::Uninitialized)),
+            bridge_ip: init_bridge_ip,
+            bridge,
+            light_viewmodel: LightsViewModel::new(),
         }
-    }
-
-    fn discover_bridge() -> Promise<Result<String, HueError>> {
-        Promise::spawn_async(async move { HueBridge::discover().await })
     }
 
     fn pair_bridge(bridge_ip: &String) -> Promise<Result<HueBridge, HueError>> {
         let bridge_ip = bridge_ip.clone();
-        Promise::spawn_async(async move { HueBridge::pair(bridge_ip).await })
-    }
-
-    fn list_lights(bridge: &HueBridge) -> Promise<Result<Vec<Light>, HueError>> {
-        let bridge = bridge.clone();
-        Promise::spawn_async(async move {
-            let bridge = HueBridge::new(bridge.bridge_ip, bridge.username);
-            Light::list_lights(&bridge).await
+        Promise::spawn_async(async move { 
+            HueBridge::pair(bridge_ip).await
         })
     }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Ok(event) = TrayEvent::receiver().try_recv() {
+            println!("tray event: {:?}", event);
+            if event.event == ClickEvent::Left {
+                let prev_pos = _frame.info().window_info.position.unwrap();
+                let pos = Pos2::new((event.x as f32) - (WIDTH / 2.0), (event.y as f32) - 60.0 - HEIGHT); // - (HEIGHT / 2.0));
+                _frame.set_window_pos(pos);
+            }
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
-            let bridge_ip = &self.bridge_ip;
-            let bridge = &self.bridge_key;
+            let bridge_ip = self.bridge_ip.get_or_insert_with(|| {
+                Promise::spawn_async(async move { HueBridge::discover().await })
+            });
 
             match bridge_ip.ready() {
                 Some(Ok(bridge_ip)) => {
-                    match bridge.ready() {
+                    let bridge = self.bridge.get_or_insert_with(|| { Self::pair_bridge(bridge_ip) });
+            
+                    match bridge.ready_mut() {
                         Some(Ok(bridge)) => {
-                            match self.lights.ready_mut() {
-                                Some(Ok(lights)) => {
-                                    ui.vertical(|ui| {
-                                        lights.iter_mut().for_each(|light| {
-                                            light_view::ui(light, bridge, ui);
-                                        });
-                                    });
-                                },
-                                Some(Err(HueError::Uninitialized)) => { self.lights = Self::list_lights(bridge); },
-                                _ => { ui.spinner(); }
-                            }
+                            self.light_viewmodel.ui(bridge, ui);
                         },
-                        Some(Err(HueError::Uninitialized)) => { self.bridge_key = Self::pair_bridge(bridge_ip); },
                         Some(Err(_)) => {
                             ui.vertical(|ui| {
                                 ui.spinner();
                                 if ui.button("Retry?").clicked() {
-                                    self.bridge_key = Self::pair_bridge(bridge_ip);
+                                    self.bridge = Some(Self::pair_bridge(bridge_ip));
                                 }
                             });
                         },
                         _ => { ui.spinner(); }
                     }
                 },
-                Some(Err(HueError::Uninitialized)) => { self.bridge_ip = Self::discover_bridge(); },
                 _ => { ui.spinner(); }
             }
         });
+
+        ctx.request_repaint_after(Duration::new(0, 100));
     }
 
     fn save(&mut self, _storage: &mut dyn Storage) {
-        if let Some(bridge_ip_res) = self.bridge_ip.ready() {
-            if let Ok(bridge_ip) = bridge_ip_res {
+        if let Some(bridge_ip_opt) = &self.bridge_ip {
+            if let Some(Ok(bridge_ip)) = bridge_ip_opt.ready() {
                 _storage.set_string(BRIDGE_IP_KEY, bridge_ip.into());
             }
         }
 
-        if let Some(bridge_key_res) = self.bridge_key.ready() {
-            if let Ok(bridge) = bridge_key_res {
+        if let Some(bridge_key_opt) = &self.bridge {
+            if let Some(Ok(bridge)) = bridge_key_opt.ready() {
                 _storage.set_string(BRIDGE_KEY_KEY, bridge.username.clone());
             }
         }

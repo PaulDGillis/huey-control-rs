@@ -20,8 +20,6 @@ pub enum HueError {
     },
     #[error("Unable to create reqwest client.")]
     ClientCreate,
-    #[error("Unable to initialize.")]
-    Uninitialized
 }
 
 #[derive(Debug, Clone)]
