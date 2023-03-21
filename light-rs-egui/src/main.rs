@@ -24,11 +24,12 @@ async fn main() -> Result<(), eframe::Error> {
         decorated: false,
         min_window_size: Some(Vec2::new(WIDTH, HEIGHT)),
         max_window_size: Some(Vec2::new(WIDTH, HEIGHT)),
+        always_on_top: true,
         ..Default::default()
     };
 
     let _tray_icon = TrayIconBuilder::new()
-        .with_tooltip("system-tray - tray icon library!")
+        .with_tooltip("Light-rs - tray")
         .build()
         .unwrap();
 
@@ -40,9 +41,10 @@ async fn main() -> Result<(), eframe::Error> {
 }
 
 struct MyApp {
+    is_visible: bool,
     bridge_ip: Option<Promise<Result<String, HueError>>>,
     bridge: Option<Promise<Result<HueBridge, HueError>>>,
-    light_viewmodel: LightsViewModel
+    light_viewmodel: LightsViewModel,
 }
 
 const BRIDGE_IP_KEY: &'static str = "bridge_ip";
@@ -66,6 +68,7 @@ impl MyApp {
         }
 
         MyApp {
+            is_visible: false,
             bridge_ip: init_bridge_ip,
             bridge,
             light_viewmodel: LightsViewModel::new(),
@@ -83,11 +86,13 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Ok(event) = TrayEvent::receiver().try_recv() {
-            println!("tray event: {:?}", event);
             if event.event == ClickEvent::Left {
-                let prev_pos = _frame.info().window_info.position.unwrap();
-                let pos = Pos2::new((event.x as f32) - (WIDTH / 2.0), (event.y as f32) - 60.0 - HEIGHT); // - (HEIGHT / 2.0));
+                let pos = Pos2::new((event.x as f32) - (WIDTH / 2.0), (event.y as f32) - 80.0 - HEIGHT); // - (HEIGHT / 2.0));
                 _frame.set_window_pos(pos);
+                
+                let state = !self.is_visible;
+                _frame.set_minimized(state);
+                self.is_visible = state;
             }
         }
 
