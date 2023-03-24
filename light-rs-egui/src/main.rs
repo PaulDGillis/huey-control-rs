@@ -5,7 +5,7 @@ use eframe::{egui, Storage, epaint::{Pos2, Vec2}, IconData};
 use light_rs_core::{HueError, HueBridge};
 use light_view::LightsViewModel;
 use poll_promise::Promise;
-use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent};
+use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent, TrayIcon};
 
 mod light_view;
 mod toggle_switch;
@@ -36,16 +36,18 @@ async fn main() -> Result<(), eframe::Error> {
     let icon = tray_icon::icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
         .expect("Failed to open icon");
 
-    let _tray_icon = TrayIconBuilder::new()
+    let mut tray_icon = TrayIconBuilder::new()
         .with_tooltip("Light-rs - tray")
-        .with_icon(icon)
-        .build()
-        .unwrap();
+        .with_icon(icon);
+    
+    if cfg!(macos) {
+        tray_icon = tray_icon.with_icon_as_template(true).with_menu_on_left_click(false);
+    }
 
     eframe::run_native(
         "Light-rs",
         options,
-        Box::new(|cc| Box::new(MyApp::new(cc))),
+        Box::new(move |cc| Box::new(MyApp::new(cc, tray_icon.build().unwrap()))),
     )
 }
 
@@ -63,14 +65,15 @@ struct MyApp {
     bridge_ip: Option<Promise<Result<String, HueError>>>,
     bridge: Option<Promise<Result<HueBridge, HueError>>>,
     light_viewmodel: LightsViewModel,
-    tray_events: Receiver<TrayEvent>
+    tray_events: Receiver<TrayEvent>,
+    _tray_icon: TrayIcon
 }
 
 const BRIDGE_IP_KEY: &'static str = "bridge_ip";
 const BRIDGE_KEY_KEY: &'static str = "bridge_key";
 
 impl MyApp {
-    fn new(_cc: &eframe::CreationContext<'_>) -> MyApp {
+    fn new(_cc: &eframe::CreationContext<'_>, tray_icon: TrayIcon) -> MyApp {
         let mut init_bridge_ip = None;
         let mut bridge = None;
         if let Some(store) = _cc.storage {
@@ -100,7 +103,8 @@ impl MyApp {
             bridge_ip: init_bridge_ip,
             bridge,
             light_viewmodel: LightsViewModel::new(),
-            tray_events: r
+            tray_events: r,
+            _tray_icon: tray_icon
         }
     }
 
@@ -121,13 +125,24 @@ impl eframe::App for MyApp {
         if let Ok(event) = self.tray_events.try_recv() {
             if event.event == ClickEvent::Left {
                 let state = !self.is_visible;
-                frame.set_visible(state);
+
                 self.is_visible = state;
 
-                let pos = Pos2::new((((event.icon_rect.right - event.icon_rect.left)/2.0 + event.icon_rect.left) as f32) - (WIDTH/2.0), (event.icon_rect.top as f32) - 70.0 - HEIGHT);
+                let x = (((event.icon_rect.right - event.icon_rect.left)/2.0 + event.icon_rect.left) as f32) - WIDTH;
+                let y = {
+                    if cfg!(windows) {
+                        (event.icon_rect.top as f32) + 70.0 + HEIGHT
+                    } else {
+                        (event.icon_rect.top as f32) + 12.0
+                    }
+                };
+                    
+                let pos = Pos2::new(x, y);
                 frame.set_window_pos(pos);
             }
         }
+        
+        frame.set_visible(self.is_visible);
 
         custom_window_frame(ctx, frame, |ui| {
             let bridge_ip = self.bridge_ip.get_or_insert_with(|| {
