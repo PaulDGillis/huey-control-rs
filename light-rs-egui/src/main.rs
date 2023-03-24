@@ -85,16 +85,17 @@ impl MyApp {
         let quit = MenuItem::new("Quit", true, None);
         let menu = Menu::new();
         menu.append_items(&[&quit]);
-        let tray_icon = TrayIconBuilder::new()
-            .with_tooltip("Light-rs - tray")
-            .with_icon(icon)
-            .with_menu(Box::new(menu))
-            .build()
-            .unwrap();
-    
-        // if cfg!(macos) {
-        //     tray_icon = tray_icon.with_icon_as_template(true).with_menu_on_left_click(false);
-        // }
+        let tray_icon = {
+            let mut builder = TrayIconBuilder::new()
+                .with_tooltip("Light-rs - tray")
+                .with_icon(icon);
+
+            if !cfg!(target_os = "macos") {
+                builder = builder.with_menu(Box::new(menu));
+            }
+
+            builder.build().unwrap()
+        };
 
         let (s, tray_receiver) = crossbeam_channel::unbounded();
 
