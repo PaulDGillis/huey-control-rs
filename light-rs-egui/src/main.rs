@@ -159,8 +159,9 @@ impl eframe::App for MyApp {
                     }
                 };
                 let y = {
+                    let ppi = ctx.pixels_per_point();
                     if cfg!(windows) {
-                        (event.icon_rect.top as f32) - 70.0 - HEIGHT
+                        (event.icon_rect.top as f32) - (70.0 * ppi) - HEIGHT
                     } else {
                         (event.icon_rect.top as f32) + 12.0
                     }
