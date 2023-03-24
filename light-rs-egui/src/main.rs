@@ -1,12 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::time::Duration;
-
-use eframe::{egui, Storage, epaint::{Pos2, Vec2}};
+use crossbeam_channel::Receiver;
+use eframe::{egui, Storage, epaint::{Pos2, Vec2}, IconData};
 use light_rs_core::{HueError, HueBridge};
 use light_view::LightsViewModel;
 use poll_promise::Promise;
-use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent, Rectangle};
+use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent};
 
 mod light_view;
 mod toggle_switch;
@@ -19,17 +18,27 @@ async fn main() -> Result<(), eframe::Error> {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/icon.png");
+    let (icon_rgba, icon_width, icon_height) = load_icon(std::path::Path::new(path));
+
     let options = eframe::NativeOptions {
         resizable: false,
         decorated: false,
+        transparent: true,
         min_window_size: Some(Vec2::new(WIDTH, HEIGHT)),
         max_window_size: Some(Vec2::new(WIDTH, HEIGHT)),
         always_on_top: true,
+        run_and_return: false,
+        icon_data: Some(IconData { rgba: icon_rgba.clone(), width: icon_width, height: icon_height }),
         ..Default::default()
     };
 
+    let icon = tray_icon::icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
+        .expect("Failed to open icon");
+
     let _tray_icon = TrayIconBuilder::new()
         .with_tooltip("Light-rs - tray")
+        .with_icon(icon)
         .build()
         .unwrap();
 
@@ -40,11 +49,21 @@ async fn main() -> Result<(), eframe::Error> {
     )
 }
 
+fn load_icon(path: &std::path::Path) -> (Vec<u8>, u32, u32) {
+    let image = image::open(path)
+        .expect("Failed to open icon path")
+        .into_rgba8();
+    let (width, height) = image.dimensions();
+    let rgba = image.into_raw();
+    (rgba, width, height)
+}
+
 struct MyApp {
     is_visible: bool,
     bridge_ip: Option<Promise<Result<String, HueError>>>,
     bridge: Option<Promise<Result<HueBridge, HueError>>>,
     light_viewmodel: LightsViewModel,
+    tray_events: Receiver<TrayEvent>
 }
 
 const BRIDGE_IP_KEY: &'static str = "bridge_ip";
@@ -67,11 +86,21 @@ impl MyApp {
             }
         }
 
+        let (s, r) = crossbeam_channel::unbounded();
+
+        let context = _cc.egui_ctx.clone();
+        #[allow(unused_must_use)]
+        TrayEvent::set_event_handler(Some(move |item| {
+            s.send(item);
+            context.request_repaint();
+        }));
+
         MyApp {
             is_visible: false,
             bridge_ip: init_bridge_ip,
             bridge,
             light_viewmodel: LightsViewModel::new(),
+            tray_events: r
         }
     }
 
@@ -84,20 +113,23 @@ impl MyApp {
 }
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if let Ok(event) = TrayEvent::receiver().try_recv() {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        egui::Rgba::TRANSPARENT.to_array() // Make sure we don't paint anything behind the rounded corners
+    }
+
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let Ok(event) = self.tray_events.try_recv() {
             if event.event == ClickEvent::Left {
-                let size = _frame.info().window_info.monitor_size.unwrap();
-                let pos = Pos2::new((event.x as f32) - (WIDTH / 2.0), (size.y as f32) - 80.0 - HEIGHT - (HEIGHT / 2.0));
-                _frame.set_window_pos(pos);
-                
                 let state = !self.is_visible;
-                _frame.set_minimized(state);
+                frame.set_visible(state);
                 self.is_visible = state;
+
+                let pos = Pos2::new((((event.icon_rect.right - event.icon_rect.left)/2.0 + event.icon_rect.left) as f32) - (WIDTH/2.0), (event.icon_rect.top as f32) - 70.0 - HEIGHT);
+                frame.set_window_pos(pos);
             }
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        custom_window_frame(ctx, frame, |ui| {
             let bridge_ip = self.bridge_ip.get_or_insert_with(|| {
                 Promise::spawn_async(async move { HueBridge::discover().await })
             });
@@ -124,8 +156,6 @@ impl eframe::App for MyApp {
                 _ => { ui.spinner(); }
             }
         });
-
-        ctx.request_repaint_after(Duration::new(0, 100));
     }
 
     fn save(&mut self, _storage: &mut dyn Storage) {
@@ -142,3 +172,29 @@ impl eframe::App for MyApp {
         }
     }
 }
+
+fn custom_window_frame(
+    ctx: &egui::Context,
+    _frame: &mut eframe::Frame,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    use egui::*;
+
+    let panel_frame = egui::Frame {
+        fill: ctx.style().visuals.window_fill(),
+        rounding: 10.0.into(),
+        stroke: ctx.style().visuals.widgets.noninteractive.fg_stroke,
+        outer_margin: 0.5.into(), // so the stroke is within the bounds
+        ..Default::default()
+    };
+
+    CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
+        let app_rect = ui.max_rect();
+
+        // Add the contents:
+        let content_rect = app_rect.shrink(4.0);
+        let mut content_ui = ui.child_ui(content_rect, *ui.layout());
+        add_contents(&mut content_ui);
+    });
+}
+

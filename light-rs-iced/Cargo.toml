@@ -7,5 +7,7 @@ edition = "2021"
 
 [dependencies]
 light-rs-core = { path = "../light-rs-core/" }
-iced = { version = "0.8", features = ["default", "canvas", "debug", "tokio"] }
+iced = { version = "0.8.0", features = ["default", "canvas", "debug", "tokio"] }
 iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", rev = "49c6f99", features = ["default", "color_picker", "icons", "spinner", "cupertino"] }
+tray-icon = { version = "0.4.3" }
+crossbeam-channel = "0.5"

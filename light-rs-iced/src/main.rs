@@ -1,11 +1,18 @@
 use iced_aw::Spinner;
 use iced::widget::{column,text,toggler,container};
-use iced::{ Application, executor, Length, Theme, Command, Settings, Element, Alignment };
+use iced::{ Application, executor, Length, Theme, Command, Settings, Element, Alignment, Subscription };
 use light_rs_core::light::Light;
 use light_rs_core::{HueBridge, HueError};
+use tray_icon::TrayEvent;
+
+mod tray;
 
 fn main() -> iced::Result {
     LightRS::run(Settings::default())
+}
+
+fn test(event: TrayEvent) {
+    println!("{:?}", event);
 }
 
 enum LightRS {
@@ -23,7 +30,8 @@ enum Message {
     PairBridge(Result<HueBridge, HueError>),
     ListLights(Result<Vec<Light>, HueError>),
     ChangePower(bool),
-    ChangeColor
+    ChangeColor,
+    None
 }
 
 impl Application for LightRS {
@@ -33,11 +41,23 @@ impl Application for LightRS {
     type Flags = ();
 
     fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
+        let _tray_icon = tray_icon::TrayIconBuilder::new()
+            .with_tooltip("system-tray - tray icon library!")
+            .build()
+            .unwrap();
+
         (Self::BridgeSearch, Command::perform(HueBridge::discover(), Message::DiscoverBridge))
     }
 
     fn title(&self) -> String {
         "Light-rs".into()
+    }
+
+    fn subscription(&self) -> iced::Subscription<Self::Message> {
+        let message = TrayEvent::receiver().try_recv().unwrap();
+
+        let (sub, _) = Subscription::with(self, message);
+        return sub;
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {

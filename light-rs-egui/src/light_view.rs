@@ -28,7 +28,7 @@ impl LightsViewModel {
         let lights_promise = self.lights.get_or_insert_with(|| {
             let bridge = bridge.clone();
             Promise::spawn_async(async move {
-                Light::list_lights(&bridge).await
+                Light::list_lights(bridge).await
                     .map(|items| {
                         items.into_iter().map(|item| {
                             let brightness = item.brightness;

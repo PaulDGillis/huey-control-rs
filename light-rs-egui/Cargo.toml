@@ -7,8 +7,10 @@ edition = "2021"
 
 [dependencies]
 light-rs-core = { path = "../light-rs-core/" }
-eframe = { version = "0.21.3", features = [ "persistence" ] }
 tracing-subscriber = "0.3.16"
 tokio = { version = "1.26.0", features = ["full"] }
+eframe = { version = "0.21.3", features = ["default", "persistence"] }
 poll-promise = { version = "0.2.0", features = ["tokio"] }
-tray-icon = { version = "0.4.3" }
+image = { version = "0.24" }
+tray-icon = { version = "0.4.4" }
+crossbeam-channel = "0.5"
