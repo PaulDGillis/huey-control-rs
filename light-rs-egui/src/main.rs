@@ -128,10 +128,16 @@ impl eframe::App for MyApp {
 
                 self.is_visible = state;
 
-                let x = (((event.icon_rect.right - event.icon_rect.left)/2.0 + event.icon_rect.left) as f32) - WIDTH;
+                let x = {
+                    if cfg!(windows) {
+                        (((event.icon_rect.right - event.icon_rect.left)/2.0 + event.icon_rect.left) as f32) - (WIDTH/2.0)
+                    } else {
+                        (((event.icon_rect.right - event.icon_rect.left)/2.0 + event.icon_rect.left) as f32) - WIDTH
+                    }
+                };
                 let y = {
                     if cfg!(windows) {
-                        (event.icon_rect.top as f32) + 70.0 + HEIGHT
+                        (event.icon_rect.top as f32) - 70.0 - HEIGHT
                     } else {
                         (event.icon_rect.top as f32) + 12.0
                     }
