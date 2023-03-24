@@ -5,7 +5,7 @@ use eframe::{egui, Storage, epaint::{Pos2, Vec2}, IconData};
 use light_rs_core::{HueError, HueBridge};
 use light_view::LightsViewModel;
 use poll_promise::Promise;
-use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent, TrayIcon};
+use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent, TrayIcon, menu::{Menu, MenuItem, MenuEvent}};
 
 mod light_view;
 mod toggle_switch;
@@ -36,18 +36,10 @@ async fn main() -> Result<(), eframe::Error> {
     let icon = tray_icon::icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
         .expect("Failed to open icon");
 
-    let mut tray_icon = TrayIconBuilder::new()
-        .with_tooltip("Light-rs - tray")
-        .with_icon(icon);
-    
-    if cfg!(macos) {
-        tray_icon = tray_icon.with_icon_as_template(true).with_menu_on_left_click(false);
-    }
-
     eframe::run_native(
         "Light-rs",
         options,
-        Box::new(move |cc| Box::new(MyApp::new(cc, tray_icon.build().unwrap()))),
+        Box::new(move |cc| Box::new(MyApp::new(cc, icon))),
     )
 }
 
@@ -66,6 +58,7 @@ struct MyApp {
     bridge: Option<Promise<Result<HueBridge, HueError>>>,
     light_viewmodel: LightsViewModel,
     tray_events: Receiver<TrayEvent>,
+    menu_events: Receiver<MenuEvent>,
     _tray_icon: TrayIcon
 }
 
@@ -73,7 +66,7 @@ const BRIDGE_IP_KEY: &'static str = "bridge_ip";
 const BRIDGE_KEY_KEY: &'static str = "bridge_key";
 
 impl MyApp {
-    fn new(_cc: &eframe::CreationContext<'_>, tray_icon: TrayIcon) -> MyApp {
+    fn new(_cc: &eframe::CreationContext<'_>, icon: tray_icon::icon::Icon) -> MyApp {
         let mut init_bridge_ip = None;
         let mut bridge = None;
         if let Some(store) = _cc.storage {
@@ -89,7 +82,21 @@ impl MyApp {
             }
         }
 
-        let (s, r) = crossbeam_channel::unbounded();
+        let quit = MenuItem::new("Quit", true, None);
+        let menu = Menu::new();
+        menu.append_items(&[&quit]);
+        let tray_icon = TrayIconBuilder::new()
+            .with_tooltip("Light-rs - tray")
+            .with_icon(icon)
+            .with_menu(Box::new(menu))
+            .build()
+            .unwrap();
+    
+        // if cfg!(macos) {
+        //     tray_icon = tray_icon.with_icon_as_template(true).with_menu_on_left_click(false);
+        // }
+
+        let (s, tray_receiver) = crossbeam_channel::unbounded();
 
         let context = _cc.egui_ctx.clone();
         #[allow(unused_must_use)]
@@ -98,12 +105,23 @@ impl MyApp {
             context.request_repaint();
         }));
 
+        let (s, menu_receiver) = crossbeam_channel::unbounded();
+
+        let quit_id = quit.id();
+        #[allow(unused_must_use)]
+        MenuEvent::set_event_handler(Some(move |item: MenuEvent| {
+            if item.id == quit_id {
+                s.send(item);
+            }
+        }));
+
         MyApp {
             is_visible: false,
             bridge_ip: init_bridge_ip,
             bridge,
             light_viewmodel: LightsViewModel::new(),
-            tray_events: r,
+            tray_events: tray_receiver,
+            menu_events: menu_receiver,
             _tray_icon: tray_icon
         }
     }
@@ -122,6 +140,10 @@ impl eframe::App for MyApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let Ok(_) = self.menu_events.try_recv() {
+            frame.close();
+        }
+
         if let Ok(event) = self.tray_events.try_recv() {
             if event.event == ClickEvent::Left {
                 let state = !self.is_visible;
