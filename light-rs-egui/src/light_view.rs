@@ -1,13 +1,45 @@
 use eframe::egui::color_picker::color_edit_button_rgb;
-use light_rs_core::light::{Color, ColorRGB, ColorXY};
-use light_rs_core::{light::Light, HueBridge, HueError};
+use light_rs_core::light::{Color, ColorRGB};
+use light_rs_core::{light::Light, HueBridge};
 use poll_promise::Promise;
 
 use crate::toggle_switch::toggle_ui;
 use crate::egui::Slider;
+use crate::Result;
 
-pub struct LightsViewModel {
-    lights: Option<Promise<Result<Vec<LightViewModel>, HueError>>>
+pub struct LightsViewModel(Option<Promise<Result<Vec<LightViewModel>>>>);
+
+impl LightsViewModel {
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    pub fn ui(&mut self, bridge: &HueBridge, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
+        // Get or create async request to get lights from bridge
+        let lights_promise = self.0.get_or_insert_with(|| {
+            let bridge = bridge.clone();
+            Promise::spawn_async(async move {
+                Light::list_lights(bridge).await.map(|lights| {
+                    lights.into_iter().map(|light| {
+                        LightViewModel::new(light)
+                    }).collect()
+                })
+            })
+        });
+
+        // Display ui spinner if promise isn't ready
+        let Some(Ok(lights)) = lights_promise.ready_mut() else {
+            return ui.spinner();
+        };
+
+        // Draw ui for the list of available lights
+        ui.vertical(|ui| {
+            lights.iter_mut().for_each(|viewmodel| {
+                viewmodel.ui(bridge, ui);
+            });    
+        }).response
+    }
+
 }
 
 pub struct LightViewModel {
@@ -19,118 +51,111 @@ pub struct LightViewModel {
     color: [f32; 3]
 }
 
-impl LightsViewModel {
-    pub fn new() -> Self {
-        Self { lights: None }
-    }
-
-    pub fn ui(&mut self, bridge: &HueBridge, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
-        let lights_promise = self.lights.get_or_insert_with(|| {
-            let bridge = bridge.clone();
-            Promise::spawn_async(async move {
-                Light::list_lights(bridge).await
-                    .map(|items| {
-                        items.into_iter().map(|item| {
-                            let brightness = item.brightness;
-                            let color_rgb = ColorXY { x: item.color.x, y: item.color.y, bri: item.brightness }.as_rgb();
-                            LightViewModel { light: item, toggle_promise: None, brightness_promise: None, color_promise: None, brightness, color: [color_rgb.r as f32, color_rgb.g as f32, color_rgb.b as f32] }
-                        })
-                        .collect()
-                    })
-            })
-        });
-
-        if let Some(Ok(lights)) = lights_promise.ready_mut() {
-            ui.vertical(|ui| {
-                lights.iter_mut().for_each(|viewmodel| {
-
-                    ui.horizontal(|ui| {
-                        let light = &mut viewmodel.light;    
-
-                        // UI for power toggle
-                        let is_on = if let Some(promise) = &viewmodel.toggle_promise {
-                            if let Some(Some(is_on)) = promise.ready() { is_on } else { &light.is_on }
-                        } else { &light.is_on };
-                
-                        if toggle_ui(ui, *is_on).clicked() {
-                            let light_id = light.id.clone();
-                            let bridge = bridge.clone();
-                
-                            let next_is_on = !is_on;
-                            light.is_on = next_is_on;
-                
-                            viewmodel.toggle_promise = Some(Promise::spawn_async(async move { 
-                                Light::toggle_power_id(light_id.to_string(), next_is_on)
-                                    .on(&bridge)
-                                    .await
-                                    .map(|_| { next_is_on })
-                                    .ok()
-                            }));
-                        }
-
-                        // UI for color picker
-                        color_edit_button_rgb(ui, &mut viewmodel.color);
-
-                        let color = ColorRGB { r: viewmodel.color[0].into(), g: viewmodel.color[1].into(), b: viewmodel.color[2].into() }.as_xy();
-
-                        if light.color.x != color.x && light.color.y != color.y {
-                            // Change?
-                            // Cancel previous request
-                            if viewmodel.color_promise.is_some() {
-                                viewmodel.color_promise.take().unwrap().abort();
-                                viewmodel.color_promise = None;
-                            }
-
-                            let light_id = light.id.clone();
-                            let bridge = bridge.clone();
-                            light.color = color;
-                            light.brightness = color.bri;
-                            let color = color.clone();
-
-                            viewmodel.color_promise = Some(Promise::spawn_async(async move { 
-                                Light::change_color_id(light_id.to_string(), Some(Color::XY(color)), Some(color.bri), None)
-                                    .on(&bridge)
-                                    .await
-                                    .ok()
-                            }));
-                        }
-
-                        // UI for brightness slider
-                        let light_min_brightness = light.min_brightness;
-                        ui.add(
-                            Slider::new(&mut viewmodel.brightness, light_min_brightness..=100.0)
-                                .step_by(10.0)
-                                .show_value(false)
-                        );
-
-                        if viewmodel.brightness != light.brightness {
-                            // Cancel previous request
-                            if viewmodel.brightness_promise.is_some() {
-                                viewmodel.brightness_promise.take().unwrap().abort();
-                                viewmodel.brightness_promise = None;
-                            }
-
-                            let light_id = light.id.clone();
-                            let bridge = bridge.clone();
-                            let brightness = viewmodel.brightness;
-                            light.brightness = brightness;
-
-                            viewmodel.brightness_promise = Some(Promise::spawn_async(async move { 
-                                Light::change_color_id(light_id.to_string(), None, Some(brightness), None)
-                                    .on(&bridge)
-                                    .await
-                                    .ok()
-                            }));
-                        }
-
-                        // UI for light name
-                        ui.label(&light.name);
-                    });
-                });    
-            }).response
-        } else {
-            ui.spinner()
+impl LightViewModel {
+    pub fn new(light: Light) -> Self {
+        let brightness = light.brightness;
+        let color_rgb = light.color.as_rgb();
+        Self {
+            light,
+            toggle_promise: None,
+            brightness_promise: None,
+            color_promise: None,
+            brightness,
+            // TODO check f32 conversion
+            color: [color_rgb.r as f32, color_rgb.g as f32, color_rgb.b as f32]
         }
     }
 
+    pub fn ui(&mut self, bridge: &HueBridge, ui: &mut eframe::egui::Ui) -> eframe::egui::Response {
+        ui.horizontal(|ui| {
+            // Draw ui for nice toggle switch
+            let is_on = if let Some(promise) = &self.toggle_promise {
+                if let Some(Some(is_on)) = promise.ready() { is_on } else { &self.light.is_on }
+            } else { &self.light.is_on };
+    
+            // Has toggle switch state changed?
+            if toggle_ui(ui, *is_on).clicked() {
+                // Execute change for local light struct
+                let next_is_on = !is_on;
+                self.light.is_on = next_is_on;
+
+                // Create async request to change on bridge
+                // TODO these state change promises should change back ui if request fails
+                let light_id = self.light.id.clone();
+                let bridge = bridge.clone();
+                self.toggle_promise = Some(Promise::spawn_async(async move { 
+                    Light::toggle_power_id(light_id, next_is_on)
+                        .on(&bridge)
+                        .await
+                        .map(|_| { next_is_on })
+                        .ok()
+                }));
+            }
+
+            // Draw ui for color picker
+            color_edit_button_rgb(ui, &mut self.color);
+
+            // Convert ui color to Hue compatible CIE XY color
+            let color = ColorRGB { r: self.color[0].into(), g: self.color[1].into(), b: self.color[2].into() }.as_xy();
+
+            // Has color changed?
+            if self.light.color.x != color.x && self.light.color.y != color.y {
+                // Cancel previous request
+                if self.color_promise.is_some() {
+                    self.color_promise.take().unwrap().abort();
+                    self.color_promise = None;
+                }
+
+                // Execute change for local light struct
+                self.light.color = color;
+                self.light.brightness = color.bri;
+
+                // Create async request to change on bridge
+                // TODO these state change promises should change back ui if request fails
+                let light_id = self.light.id.clone();
+                let bridge = bridge.clone();
+                let color = color.clone();
+                self.color_promise = Some(Promise::spawn_async(async move { 
+                    Light::change_color_id(light_id.to_string(), Some(Color::XY(color)), Some(color.bri), None)
+                        .on(&bridge)
+                        .await
+                        .ok()
+                }));
+            }
+
+            // Draw ui for brightness slider
+            ui.add(
+                Slider::new(&mut self.brightness, self.light.min_brightness..=100.0)
+                    .step_by(10.0)
+                    .show_value(false)
+            );
+
+            // Has brightness changed?
+            if self.brightness != self.light.brightness {
+                // Cancel previous request
+                if self.brightness_promise.is_some() {
+                    self.brightness_promise.take().unwrap().abort();
+                    self.brightness_promise = None;
+                }
+
+                // Execute change for local light struct
+                let brightness = self.brightness;
+                self.light.brightness = brightness;
+
+                // Create async request to change on bridge
+                // TODO these state change promises should change back ui if request fails
+                let light_id = self.light.id.clone();
+                let bridge = bridge.clone();
+                self.brightness_promise = Some(Promise::spawn_async(async move { 
+                    Light::change_color_id(light_id.to_string(), None, Some(brightness), None)
+                        .on(&bridge)
+                        .await
+                        .ok()
+                }));
+            }
+
+            // Draw ui for light name
+            ui.label(&self.light.name);
+        }).response
+    }
 }

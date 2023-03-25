@@ -10,19 +10,29 @@ use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent, TrayIcon, menu::{Menu, M
 mod light_view;
 mod toggle_switch;
 
+pub type Result<T> = std::result::Result<T, HueError>;
+
 const WIDTH: f32 = 300.0;
 const HEIGHT: f32 = 200.0;
 const BRIDGE_IP_KEY: &'static str = "bridge_ip";
 const BRIDGE_KEY_KEY: &'static str = "bridge_key";
 
 #[tokio::main]
-async fn main() -> Result<(), eframe::Error> {
+async fn main() -> std::result::Result<(), eframe::Error> {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
     // Load /icon.png into memory for window icon and tray icon
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/icon.png");
-    let (icon_rgba, icon_width, icon_height) = LightRS::load_icon(std::path::Path::new(path));
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::open(path)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+
     let icon = tray_icon::icon::Icon::from_rgba(icon_rgba.clone(), icon_width, icon_height)
         .expect("Failed to open icon");
 
@@ -50,8 +60,8 @@ async fn main() -> Result<(), eframe::Error> {
 
 struct LightRS {
     is_visible: bool,
-    bridge_ip: Option<Promise<Result<String, HueError>>>,
-    bridge: Option<Promise<Result<HueBridge, HueError>>>,
+    bridge_ip: Option<Promise<Result<String>>>,
+    bridge: Option<Promise<Result<HueBridge>>>,
     light_viewmodel: LightsViewModel,
     tray_receiver: Receiver<TrayEvent>,
     menu_receiver: Receiver<MenuEvent>,
@@ -127,16 +137,7 @@ impl LightRS {
         }
     }
 
-    fn load_icon(path: &std::path::Path) -> (Vec<u8>, u32, u32) {
-        let image = image::open(path)
-            .expect("Failed to open icon path")
-            .into_rgba8();
-        let (width, height) = image.dimensions();
-        let rgba = image.into_raw();
-        (rgba, width, height)
-    }
-
-    fn pair_bridge(bridge_ip: &String) -> Promise<Result<HueBridge, HueError>> {
+    fn pair_bridge(bridge_ip: &String) -> Promise<Result<HueBridge>> {
         let bridge_ip = bridge_ip.clone();
         Promise::spawn_async(async move { 
             HueBridge::pair(bridge_ip).await
