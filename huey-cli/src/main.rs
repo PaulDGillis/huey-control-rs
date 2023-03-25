@@ -1,4 +1,4 @@
-use light_rs_core::{ light::{ Color, Light }, HueBridge };
+use huey_core::{ light::{ Color, Light, ColorXY }, HueBridge };
 use clap::{ Parser, Subcommand, Args };
 
 /// Simple program to greet a person
@@ -65,31 +65,30 @@ async fn main() {
             println!("{:?}", result);
         },
         Commands::Light(light_args) => {
-            if let Ok(bridge) = HueBridge::new(light_args.key, light_args.bridge) {
-                let light_command = light_args.command.unwrap_or(LightCommands::List);
-                match light_command {
-                    LightCommands::List => {
-                        let result = Light::list_lights(&bridge).await;
-                        println!("{:?}", result);
-                    },
-                    LightCommands::Power { light_id, on } => {
-                        let result = Light::toggle_power_id(light_id, on)
-                            .on(&bridge)
-                            .await;
-                        println!("{:?}", result);
-                    },
-                    LightCommands::Color { light_id, x, y, brightness } => {
-                        let mut color_opt = None;
-                        if let (Some(x), Some(y)) = (x, y) {
-                            color_opt = Some(Color(x, y));
-                        }
+            let bridge = HueBridge::new(light_args.key, light_args.bridge);
+            let light_command = light_args.command.unwrap_or(LightCommands::List);
+            match light_command {
+                LightCommands::List => {
+                    let result = Light::list_lights(&bridge).await;
+                    println!("{:?}", result);
+                },
+                LightCommands::Power { light_id, on } => {
+                    let result = Light::toggle_power_id(light_id, on)
+                        .on(&bridge)
+                        .await;
+                    println!("{:?}", result);
+                },
+                LightCommands::Color { light_id, x, y, brightness } => {
+                    let mut color_opt = None;
+                    if let (Some(x), Some(y), Some(brightness)) = (x, y, brightness) {
+                        color_opt = Some(Color::XY(ColorXY { x, y, bri: brightness }));
+                    }
 
-                        let result = Light::change_color_id(light_id, color_opt, brightness, None)
-                            .on(&bridge)
-                            .await;
-                        println!("{:?}", result);
-                    },
-                }
+                    let result = Light::change_color_id(light_id, color_opt, brightness, None)
+                        .on(&bridge)
+                        .await;
+                    println!("{:?}", result);
+                },
             }
         }
     }

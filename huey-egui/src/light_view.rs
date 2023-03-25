@@ -1,6 +1,5 @@
 use eframe::egui::color_picker::color_edit_button_rgb;
-use light_rs_core::light::{Color, ColorRGB};
-use light_rs_core::{light::Light, HueBridge};
+use huey_core::{HueBridge, light::{Light, Color, ColorRGB}};
 use poll_promise::Promise;
 
 use crate::toggle_switch::toggle_ui;
@@ -19,7 +18,7 @@ impl LightsViewModel {
         let lights_promise = self.0.get_or_insert_with(|| {
             let bridge = bridge.clone();
             Promise::spawn_async(async move {
-                Light::list_lights(bridge).await.map(|lights| {
+                Light::list_lights(&bridge).await.map(|lights| {
                     lights.into_iter().map(|light| {
                         LightViewModel::new(light)
                     }).collect()

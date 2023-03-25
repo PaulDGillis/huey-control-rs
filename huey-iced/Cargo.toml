@@ -1,12 +1,12 @@
 [package]
-name = "light-rs-iced"
+name = "huey-iced"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-light-rs-core = { path = "../light-rs-core/" }
+huey-core = { path = "../huey-core/" }
 iced = { version = "0.8.0", features = ["default", "canvas", "debug", "tokio"] }
 iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", rev = "49c6f99", features = ["default", "color_picker", "icons", "spinner", "cupertino"] }
 tray-icon = { version = "0.4.3" }

@@ -1,5 +1,5 @@
 [package]
-name = "light-rs-cli"
+name = "huey-cli"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.1.8", features = ["derive"] }
-light-rs-core = { path = "../light-rs-core" }
+huey-core = { path = "../huey-core" }
 tokio = { version = "1.26.0", features = ["full"] }

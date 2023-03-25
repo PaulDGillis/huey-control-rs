@@ -1645,13 +1645,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 
 [[package]]
+name = "huey-core"
+version = "0.1.0"
+dependencies = [
+ "poll-promise",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "huey-egui"
 version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "eframe",
+ "huey-core",
  "image",
- "light-rs-core",
  "poll-promise",
  "tokio",
  "tracing-subscriber",
@@ -1903,19 +1916,6 @@ checksum = "db23b9e7e2b7831bbd8aac0bbeeeb7b68cbebc162b227e7052e8e55829a09212"
 dependencies = [
  "libc",
  "x11",
-]
-
-[[package]]
-name = "light-rs-core"
-version = "0.1.0"
-dependencies = [
- "poll-promise",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "uuid",
 ]
 
 [[package]]

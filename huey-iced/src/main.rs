@@ -1,21 +1,20 @@
 use iced_aw::Spinner;
-use iced::widget::{column,text,toggler,container};
-use iced::{ Application, executor, Length, Theme, Command, Settings, Element, Alignment, Subscription };
-use light_rs_core::light::Light;
-use light_rs_core::{HueBridge, HueError};
+use iced::widget::{column,container};
+use iced::{ Application, executor, Length, Theme, Command, Settings, Element };
+use huey_core::{HueBridge, HueError, light::Light};
 use tray_icon::TrayEvent;
 
 mod tray;
 
 fn main() -> iced::Result {
-    LightRS::run(Settings::default())
+    HueyApp::run(Settings::default())
 }
 
 fn test(event: TrayEvent) {
     println!("{:?}", event);
 }
 
-enum LightRS {
+enum HueyApp {
     BridgeSearch,
     BridgeFound,
     BridgePaired { bridge: HueBridge },
@@ -34,7 +33,7 @@ enum Message {
     None
 }
 
-impl Application for LightRS {
+impl Application for HueyApp {
     type Message = Message;
     type Theme = Theme;
     type Executor = executor::Default;
@@ -53,12 +52,12 @@ impl Application for LightRS {
         "Light-rs".into()
     }
 
-    fn subscription(&self) -> iced::Subscription<Self::Message> {
-        let message = TrayEvent::receiver().try_recv().unwrap();
+    // fn subscription(&self) -> iced::Subscription<Self::Message> {
+    //     let message = TrayEvent::receiver().try_recv().unwrap();
 
-        let (sub, _) = Subscription::with(self, message);
-        return sub;
-    }
+    //     let (sub, _) = Subscription::with(self, message);
+    //     return sub;
+    // }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
@@ -74,7 +73,7 @@ impl Application for LightRS {
                 match result {
                     Ok(bridge) => {
                         *self = Self::BridgePaired { bridge: bridge.clone() };
-                        return Command::perform(Light::list_lights(bridge), Message::ListLights)
+                        // return Command::perform(Light::list_lights(&bridge), Message::ListLights)
                     },
                     Err(HueError::LinkButtonNotPressed) => {
                         *self = Self::LinkButtonNotPressed;

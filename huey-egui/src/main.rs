@@ -2,7 +2,7 @@
 
 use crossbeam_channel::Receiver;
 use eframe::{egui::{self, CentralPanel}, Storage, epaint::{Pos2, Vec2}, IconData};
-use light_rs_core::{HueError, HueBridge};
+use huey_core::{HueError, HueBridge};
 use light_view::LightsViewModel;
 use poll_promise::Promise;
 use tray_icon::{TrayIconBuilder, TrayEvent, ClickEvent, TrayIcon, menu::{Menu, MenuItem, MenuEvent}};

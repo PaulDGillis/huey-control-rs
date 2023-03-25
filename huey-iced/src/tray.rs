@@ -1,9 +1,8 @@
 use crossbeam_channel::Receiver;
-use iced::{Subscription, subscription};
+// use iced::{Subscription, subscription};
 use tray_icon::TrayEvent;
 
-use crate::LightRS;
-
+// use crate::HueyApp;
 
 pub enum ExtTrayEvent {
     Ready,
@@ -14,20 +13,20 @@ enum State {
     Ready(Receiver<TrayEvent>),
 }
 
-pub fn tray_worker(app: &LightRS) -> Subscription<TrayEvent> {
-    struct TrayWorker;
+// pub fn tray_worker(app: &HueyApp) -> Subscription<TrayEvent> {
+//     struct TrayWorker;
 
-    let _tray_icon = tray_icon::TrayIconBuilder::new()
-        .with_tooltip("system-tray - tray icon library!")
-        .build()
-        .unwrap();
+//     let _tray_icon = tray_icon::TrayIconBuilder::new()
+//         .with_tooltip("system-tray - tray icon library!")
+//         .build()
+//         .unwrap();
 
-    let (sender, receiver) = crossbeam_channel::unbounded();
-    TrayEvent::set_event_handler(Some(move |event| {
-        sender.send(event);
-    }));
+//     let (sender, receiver) = crossbeam_channel::unbounded();
+//     TrayEvent::set_event_handler(Some(move |event| {
+//         sender.send(event);
+//     }));
 
-    return Subscription::with(app, TrayEvent::receiver().try_recv().unwrap()).0;
+//     return Subscription::with(app, TrayEvent::receiver().try_recv().unwrap()).0;
 
     // subscription::unfold(std::any::TypeId::of::<TrayWorker>(), State::Starting, |state| async move {
     //     match state {
@@ -51,4 +50,4 @@ pub fn tray_worker(app: &LightRS) -> Subscription<TrayEvent> {
     //         }
     //     }
     // })
-}
+// }
