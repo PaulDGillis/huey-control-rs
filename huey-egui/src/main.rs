@@ -52,7 +52,7 @@ async fn main() -> std::result::Result<(), eframe::Error> {
     };
 
     eframe::run_native(
-        "Light-rs",
+        "Huey Control",
         options,
         Box::new(move |cc| Box::new(HueyApp::new(cc, icon))),
     )
