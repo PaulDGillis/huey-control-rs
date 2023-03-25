@@ -54,11 +54,11 @@ async fn main() -> std::result::Result<(), eframe::Error> {
     eframe::run_native(
         "Light-rs",
         options,
-        Box::new(move |cc| Box::new(LightRS::new(cc, icon))),
+        Box::new(move |cc| Box::new(HueyApp::new(cc, icon))),
     )
 }
 
-struct LightRS {
+struct HueyApp {
     is_visible: bool,
     bridge_ip: Option<Promise<Result<String>>>,
     bridge: Option<Promise<Result<HueBridge>>>,
@@ -68,8 +68,8 @@ struct LightRS {
     _tray_icon: TrayIcon
 }
 
-impl LightRS {
-    fn new(_cc: &eframe::CreationContext<'_>, icon: tray_icon::icon::Icon) -> LightRS {
+impl HueyApp {
+    fn new(_cc: &eframe::CreationContext<'_>, icon: tray_icon::icon::Icon) -> HueyApp {
         // Load previous bridge from storage if possible.
         let bridge = _cc.storage.and_then(|store| {
             if let Some(bridge_ip) = store.get_string(BRIDGE_IP_KEY) {
@@ -126,7 +126,7 @@ impl LightRS {
         }));
 
         // Initial app
-        LightRS {
+        HueyApp {
             is_visible: false,
             bridge_ip,
             bridge,
@@ -145,7 +145,7 @@ impl LightRS {
     }
 }
 
-impl eframe::App for LightRS {
+impl eframe::App for HueyApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         egui::Rgba::TRANSPARENT.to_array() // Make sure we don't paint anything behind the rounded corners
     }

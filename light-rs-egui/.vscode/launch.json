@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'light-rs-egui'",
+            "name": "Debug executable 'huey-egui'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=light-rs-egui",
-                    "--package=light-rs-egui"
+                    "--bin=huey-egui",
+                    "--package=huey-egui"
                 ],
                 "filter": {
-                    "name": "light-rs-egui",
+                    "name": "huey-egui",
                     "kind": "bin"
                 }
             },
@@ -25,16 +25,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'light-rs-egui'",
+            "name": "Debug unit tests in executable 'huey-egui'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=light-rs-egui",
-                    "--package=light-rs-egui"
+                    "--bin=huey-egui",
+                    "--package=huey-egui"
                 ],
                 "filter": {
-                    "name": "light-rs-egui",
+                    "name": "huey-egui",
                     "kind": "bin"
                 }
             },
