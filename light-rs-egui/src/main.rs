@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use crossbeam_channel::Receiver;
-use eframe::{egui, Storage, epaint::{Pos2, Vec2}, IconData};
+use eframe::{egui::{self, CentralPanel}, Storage, epaint::{Pos2, Vec2}, IconData};
 use light_rs_core::{HueError, HueBridge};
 use light_view::LightsViewModel;
 use poll_promise::Promise;
@@ -12,15 +12,23 @@ mod toggle_switch;
 
 const WIDTH: f32 = 300.0;
 const HEIGHT: f32 = 200.0;
+const BRIDGE_IP_KEY: &'static str = "bridge_ip";
+const BRIDGE_KEY_KEY: &'static str = "bridge_key";
 
 #[tokio::main]
 async fn main() -> Result<(), eframe::Error> {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
+    // Load /icon.png into memory for window icon and tray icon
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/icon.png");
-    let (icon_rgba, icon_width, icon_height) = load_icon(std::path::Path::new(path));
+    let (icon_rgba, icon_width, icon_height) = LightRS::load_icon(std::path::Path::new(path));
+    let icon = tray_icon::icon::Icon::from_rgba(icon_rgba.clone(), icon_width, icon_height)
+        .expect("Failed to open icon");
 
+    let icon_data = Some(IconData { rgba: icon_rgba, width: icon_width, height: icon_height });
+
+    // Create eframe winit window options and run app.
     let options = eframe::NativeOptions {
         resizable: false,
         decorated: false,
@@ -29,102 +37,103 @@ async fn main() -> Result<(), eframe::Error> {
         max_window_size: Some(Vec2::new(WIDTH, HEIGHT)),
         always_on_top: true,
         run_and_return: false,
-        icon_data: Some(IconData { rgba: icon_rgba.clone(), width: icon_width, height: icon_height }),
+        icon_data,
         ..Default::default()
     };
-
-    let icon = tray_icon::icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
-        .expect("Failed to open icon");
 
     eframe::run_native(
         "Light-rs",
         options,
-        Box::new(move |cc| Box::new(MyApp::new(cc, icon))),
+        Box::new(move |cc| Box::new(LightRS::new(cc, icon))),
     )
 }
 
-fn load_icon(path: &std::path::Path) -> (Vec<u8>, u32, u32) {
-    let image = image::open(path)
-        .expect("Failed to open icon path")
-        .into_rgba8();
-    let (width, height) = image.dimensions();
-    let rgba = image.into_raw();
-    (rgba, width, height)
-}
-
-struct MyApp {
+struct LightRS {
     is_visible: bool,
     bridge_ip: Option<Promise<Result<String, HueError>>>,
     bridge: Option<Promise<Result<HueBridge, HueError>>>,
     light_viewmodel: LightsViewModel,
-    tray_events: Receiver<TrayEvent>,
-    menu_events: Receiver<MenuEvent>,
+    tray_receiver: Receiver<TrayEvent>,
+    menu_receiver: Receiver<MenuEvent>,
     _tray_icon: TrayIcon
 }
 
-const BRIDGE_IP_KEY: &'static str = "bridge_ip";
-const BRIDGE_KEY_KEY: &'static str = "bridge_key";
-
-impl MyApp {
-    fn new(_cc: &eframe::CreationContext<'_>, icon: tray_icon::icon::Icon) -> MyApp {
-        let mut init_bridge_ip = None;
-        let mut bridge = None;
-        if let Some(store) = _cc.storage {
+impl LightRS {
+    fn new(_cc: &eframe::CreationContext<'_>, icon: tray_icon::icon::Icon) -> LightRS {
+        // Load previous bridge from storage if possible.
+        let bridge = _cc.storage.and_then(|store| {
             if let Some(bridge_ip) = store.get_string(BRIDGE_IP_KEY) {
-                init_bridge_ip = Some(Promise::from_ready(Ok(bridge_ip.clone())));
                 if let Some(bridge_key) = store.get_string(BRIDGE_KEY_KEY) {
-                    bridge = Some(
-                        Promise::from_ready(
-                            Ok(HueBridge::new(bridge_ip.clone(), bridge_key))
-                        )
-                    );
+                    return Some(HueBridge::new(bridge_ip, bridge_key));
                 }
             }
-        }
+            None
+        });
 
+        // Convert storage values to promises
+        let (bridge_ip, bridge) = if let Some(bridge) = bridge {
+            (Some(Promise::from_ready(Ok(bridge.bridge_ip.clone()))),
+            Some(Promise::from_ready(Ok(bridge))))
+        } else { (None, None) };
+
+        // Create quit tray button for windows/linux
         let quit = MenuItem::new("Quit", true, None);
-        let menu = Menu::new();
-        menu.append_items(&[&quit]);
+
+        // Create tray icon
         let tray_icon = {
             let mut builder = TrayIconBuilder::new()
-                .with_tooltip("Light-rs - tray")
+                .with_tooltip("Light-rs")
                 .with_icon(icon);
 
+            // Create tray menu (For quit button on windows/linux, not added on macOS)
             if !cfg!(target_os = "macos") {
+                let menu = Menu::with_items(&[&quit]);
                 builder = builder.with_menu(Box::new(menu));
             }
 
             builder.build().unwrap()
         };
 
-        let (s, tray_receiver) = crossbeam_channel::unbounded();
-
+        // Wrap tray icon event handler to trigger update on event
         let context = _cc.egui_ctx.clone();
+        let (s, tray_receiver) = crossbeam_channel::unbounded();
         #[allow(unused_must_use)]
         TrayEvent::set_event_handler(Some(move |item| {
             s.send(item);
             context.request_repaint();
         }));
 
-        let (s, menu_receiver) = crossbeam_channel::unbounded();
-
+        // Wrap tray menu button event handler to trigger update on event
         let quit_id = quit.id();
+        let context = _cc.egui_ctx.clone();
+        let (s, menu_receiver) = crossbeam_channel::unbounded();
         #[allow(unused_must_use)]
         MenuEvent::set_event_handler(Some(move |item: MenuEvent| {
             if item.id == quit_id {
                 s.send(item);
+                context.request_repaint();
             }
         }));
 
-        MyApp {
+        // Initial app
+        LightRS {
             is_visible: false,
-            bridge_ip: init_bridge_ip,
+            bridge_ip,
             bridge,
             light_viewmodel: LightsViewModel::new(),
-            tray_events: tray_receiver,
-            menu_events: menu_receiver,
+            tray_receiver,
+            menu_receiver,
             _tray_icon: tray_icon
         }
+    }
+
+    fn load_icon(path: &std::path::Path) -> (Vec<u8>, u32, u32) {
+        let image = image::open(path)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
     }
 
     fn pair_bridge(bridge_ip: &String) -> Promise<Result<HueBridge, HueError>> {
@@ -135,35 +144,28 @@ impl MyApp {
     }
 }
 
-impl eframe::App for MyApp {
+impl eframe::App for LightRS {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         egui::Rgba::TRANSPARENT.to_array() // Make sure we don't paint anything behind the rounded corners
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        if let Ok(_) = self.menu_events.try_recv() {
-            frame.close();
-        }
+        // Process menu events
+        if self.menu_receiver.try_recv().is_ok() { frame.close(); }
 
-        if let Ok(event) = self.tray_events.try_recv() {
+        // Process tray events
+        if let Ok(event) = self.tray_receiver.try_recv() {
             if event.event == ClickEvent::Left {
-                let state = !self.is_visible;
+                self.is_visible = !self.is_visible;
 
-                self.is_visible = state;
-
-                let x = {
+                let ppi = ctx.pixels_per_point();
+                let (x, y) = {
+                    let icon_center_x = ((event.icon_rect.right - event.icon_rect.left) / 2.0 + event.icon_rect.left) as f32;
+                    let icon_top_y = event.icon_rect.top as f32;
                     if cfg!(windows) {
-                        (((event.icon_rect.right - event.icon_rect.left)/2.0 + event.icon_rect.left) as f32) - (WIDTH/2.0)
+                        (icon_center_x - (WIDTH / 2.0), icon_top_y - (70.0 * ppi) - HEIGHT)
                     } else {
-                        (((event.icon_rect.right - event.icon_rect.left)/2.0 + event.icon_rect.left) as f32) - WIDTH
-                    }
-                };
-                let y = {
-                    let ppi = ctx.pixels_per_point();
-                    if cfg!(windows) {
-                        (event.icon_rect.top as f32) - (70.0 * ppi) - HEIGHT
-                    } else {
-                        (event.icon_rect.top as f32) + 12.0
+                        (icon_center_x - WIDTH, icon_top_y + 12.0)
                     }
                 };
                     
@@ -174,72 +176,62 @@ impl eframe::App for MyApp {
         
         frame.set_visible(self.is_visible);
 
-        custom_window_frame(ctx, frame, |ui| {
+        // Draw ui
+        // Create rounded window frame
+        let panel_frame = egui::Frame {
+            fill: ctx.style().visuals.window_fill(),
+            rounding: 10.0.into(),
+            stroke: ctx.style().visuals.widgets.noninteractive.fg_stroke,
+            outer_margin: 0.5.into(), // so the stroke is within the bounds
+            ..Default::default()
+        };
+    
+        CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
+            // Shrink ui to fit in rounded panel_frame
+            let app_rect = ui.max_rect();
+            let content_rect = app_rect.shrink(4.0);
+            let ui = &mut ui.child_ui(content_rect, *ui.layout());
+
+            // Either get the already discovered bridge_ip or create an async request to look for one.
             let bridge_ip = self.bridge_ip.get_or_insert_with(|| {
                 Promise::spawn_async(async move { HueBridge::discover().await })
             });
 
-            match bridge_ip.ready() {
-                Some(Ok(bridge_ip)) => {
-                    let bridge = self.bridge.get_or_insert_with(|| { Self::pair_bridge(bridge_ip) });
-            
-                    match bridge.ready_mut() {
-                        Some(Ok(bridge)) => {
-                            self.light_viewmodel.ui(bridge, ui);
-                        },
-                        Some(Err(_)) => {
-                            ui.vertical(|ui| {
-                                ui.spinner();
-                                if ui.button("Retry?").clicked() {
-                                    self.bridge = Some(Self::pair_bridge(bridge_ip));
-                                }
-                            });
-                        },
-                        _ => { ui.spinner(); }
+            // Display spinner until we get bridge_ip. TODO: Error should have a retry.
+            let Some(Ok(bridge_ip)) = bridge_ip.ready() else {
+                ui.spinner();
+                return;
+            };
+
+            // Either get the pair key or create an async request for one.
+            let bridge = self.bridge.get_or_insert_with(|| { Self::pair_bridge(&bridge_ip) });
+    
+            // Show ui spinner until we get a result from async promise.
+            let Some(bridge_result) = bridge.ready_mut() else {
+                ui.spinner();
+                return;
+            };
+
+            if let Ok(bridge) = bridge_result {
+                // Display light_view.rs when bridge is connected and paired.
+                self.light_viewmodel.ui(bridge, ui);
+            } else {
+                // Display retry ui on error.
+                ui.vertical(|ui| {
+                    ui.spinner();
+                    if ui.button("Retry?").clicked() {
+                        self.bridge = Some(Self::pair_bridge(&bridge_ip));
                     }
-                },
-                _ => { ui.spinner(); }
+                });
             }
         });
     }
 
     fn save(&mut self, _storage: &mut dyn Storage) {
-        if let Some(bridge_ip_opt) = &self.bridge_ip {
-            if let Some(Ok(bridge_ip)) = bridge_ip_opt.ready() {
-                _storage.set_string(BRIDGE_IP_KEY, bridge_ip.into());
-            }
-        }
-
-        if let Some(bridge_key_opt) = &self.bridge {
-            if let Some(Ok(bridge)) = bridge_key_opt.ready() {
-                _storage.set_string(BRIDGE_KEY_KEY, bridge.username.clone());
-            }
-        }
+        // If bridge is connected, save known ip and api key to storage.
+        let Some(bridge_key_opt) = &self.bridge else { return; };
+        let Some(Ok(bridge)) = bridge_key_opt.ready() else { return; };
+        _storage.set_string(BRIDGE_IP_KEY, bridge.bridge_ip.clone());
+        _storage.set_string(BRIDGE_KEY_KEY, bridge.username.clone());
     }
 }
-
-fn custom_window_frame(
-    ctx: &egui::Context,
-    _frame: &mut eframe::Frame,
-    add_contents: impl FnOnce(&mut egui::Ui),
-) {
-    use egui::*;
-
-    let panel_frame = egui::Frame {
-        fill: ctx.style().visuals.window_fill(),
-        rounding: 10.0.into(),
-        stroke: ctx.style().visuals.widgets.noninteractive.fg_stroke,
-        outer_margin: 0.5.into(), // so the stroke is within the bounds
-        ..Default::default()
-    };
-
-    CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
-        let app_rect = ui.max_rect();
-
-        // Add the contents:
-        let content_rect = app_rect.shrink(4.0);
-        let mut content_ui = ui.child_ui(content_rect, *ui.layout());
-        add_contents(&mut content_ui);
-    });
-}
-
