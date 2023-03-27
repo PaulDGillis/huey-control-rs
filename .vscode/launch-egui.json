@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'huey-iced'",
+            "name": "Debug executable 'huey-egui'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=huey-iced",
-                    "--package=huey-iced"
+                    "--bin=huey-egui",
+                    "--package=huey-egui"
                 ],
                 "filter": {
-                    "name": "huey-iced",
+                    "name": "huey-egui",
                     "kind": "bin"
                 }
             },
@@ -25,16 +25,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'huey-iced'",
+            "name": "Debug unit tests in executable 'huey-egui'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=huey-iced",
-                    "--package=huey-iced"
+                    "--bin=huey-egui",
+                    "--package=huey-egui"
                 ],
                 "filter": {
-                    "name": "huey-iced",
+                    "name": "huey-egui",
                     "kind": "bin"
                 }
             },

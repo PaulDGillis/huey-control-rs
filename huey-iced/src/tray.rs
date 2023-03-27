@@ -1,53 +1,43 @@
 use crossbeam_channel::Receiver;
+use iced::{Subscription, subscription};
 // use iced::{Subscription, subscription};
-use tray_icon::TrayEvent;
+use tray_icon::{TrayEvent, TrayIcon};
+use crate::Message;
 
-// use crate::HueyApp;
-
-pub enum ExtTrayEvent {
-    Ready,
-    Done(TrayEvent),
-}
-enum State {
-    Starting,
-    Ready(Receiver<TrayEvent>),
+pub struct HueyTray {
+    _tray_icon: TrayIcon,
+    receiver: Receiver<TrayEvent>
 }
 
-// pub fn tray_worker(app: &HueyApp) -> Subscription<TrayEvent> {
-//     struct TrayWorker;
+impl HueyTray {
+    pub fn new() -> Self {
+        let _tray_icon = tray_icon::TrayIconBuilder::new()
+            .with_tooltip("system-tray - tray icon library!")
+            .build()
+            .unwrap();
+    
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        #[allow(unused_must_use)]
+        TrayEvent::set_event_handler(Some(move |event| {
+            sender.send(event);
+        }));
 
-//     let _tray_icon = tray_icon::TrayIconBuilder::new()
-//         .with_tooltip("system-tray - tray icon library!")
-//         .build()
-//         .unwrap();
+        Self { _tray_icon, receiver }
+    }
 
-//     let (sender, receiver) = crossbeam_channel::unbounded();
-//     TrayEvent::set_event_handler(Some(move |event| {
-//         sender.send(event);
-//     }));
+    pub fn tray_worker(&self) -> Subscription<Message> {
+        struct TrayWorker;
 
-//     return Subscription::with(app, TrayEvent::receiver().try_recv().unwrap()).0;
-
-    // subscription::unfold(std::any::TypeId::of::<TrayWorker>(), State::Starting, |state| async move {
-    //     match state {
-    //         State::Starting => {
-    //             // Create channel
-                
-    //             (Some(ExtTrayEvent::Ready), State::Ready(receiver))
-    //         }
-    //         State::Ready(receiver) => {
-    //             // Read next input sent from `Application`
-    //             match receiver.try_recv() {
-    //                 Ok(tray_event) => {
-    //                     // Do some async work...
-
-    //                     // Finally, we can optionally return a message to tell the
-    //                     // `Application` the work is done
-    //                     (Some(ExtTrayEvent::Done(tray_event)), State::Ready(receiver))
-    //                 }
-    //                 _ => { (Some(ExtTrayEvent::Ready), State::Ready(receiver)) }
-    //             }
-    //         }
-    //     }
-    // })
-// }
+        subscription::unfold(
+            std::any::TypeId::of::<TrayWorker>(),
+            self.receiver.clone(),
+            |receiver| async move {
+                if let Ok(event) = receiver.recv() {
+                    (Some(Message::TrayEvent(event)), receiver)
+                } else {
+                    (None, receiver)
+                }
+            },
+        )
+    }
+}

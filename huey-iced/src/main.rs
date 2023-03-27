@@ -2,6 +2,7 @@ use iced_aw::Spinner;
 use iced::widget::{column,container};
 use iced::{ Application, executor, Length, Theme, Command, Settings, Element };
 use huey_core::{HueBridge, HueError, light::Light};
+use tray::HueyTray;
 use tray_icon::TrayEvent;
 
 mod tray;
@@ -10,24 +11,27 @@ fn main() -> iced::Result {
     HueyApp::run(Settings::default())
 }
 
-fn test(event: TrayEvent) {
-    println!("{:?}", event);
-}
-
-enum HueyApp {
+enum HueyState {
     BridgeSearch,
     BridgeFound,
     BridgePaired { bridge: HueBridge },
     LinkButtonNotPressed,
     Failed,
+    #[allow(dead_code)]
     Dashboard { bridge: HueBridge, lights: Vec<Light> }
 }
 
+struct HueyApp {
+    tray: HueyTray,
+    state: HueyState
+}
+
 #[derive(Debug)]
-enum Message {
+pub enum Message {
     DiscoverBridge(Result<String, HueError>),
     PairBridge(Result<HueBridge, HueError>),
     ListLights(Result<Vec<Light>, HueError>),
+    TrayEvent(TrayEvent),
     ChangePower(bool),
     ChangeColor,
     None
@@ -40,57 +44,55 @@ impl Application for HueyApp {
     type Flags = ();
 
     fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
-        let _tray_icon = tray_icon::TrayIconBuilder::new()
-            .with_tooltip("system-tray - tray icon library!")
-            .build()
-            .unwrap();
-
-        (Self::BridgeSearch, Command::perform(HueBridge::discover(), Message::DiscoverBridge))
+        (Self {
+            tray: HueyTray::new(),
+            state: HueyState::BridgeSearch
+        }, Command::perform(HueBridge::discover(), Message::DiscoverBridge))
     }
 
     fn title(&self) -> String {
         "Light-rs".into()
     }
 
-    // fn subscription(&self) -> iced::Subscription<Self::Message> {
-    //     let message = TrayEvent::receiver().try_recv().unwrap();
-
-    //     let (sub, _) = Subscription::with(self, message);
-    //     return sub;
-    // }
+    fn subscription(&self) -> iced::Subscription<Self::Message> {
+        self.tray.tray_worker()
+    }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Message::DiscoverBridge(result) => {
                 if let Ok(ip) = result {
-                    *self = Self::BridgeFound;
+                    self.state = HueyState::BridgeFound;
                     return Command::perform(HueBridge::pair(ip), Message::PairBridge);
                 } else { 
-                    *self = Self::Failed;
+                    self.state = HueyState::Failed;
                 }
             },
             Message::PairBridge(result) => {
                 match result {
                     Ok(bridge) => {
-                        *self = Self::BridgePaired { bridge: bridge.clone() };
+                        self.state = HueyState::BridgePaired { bridge: bridge.clone() };
                         // return Command::perform(Light::list_lights(&bridge), Message::ListLights)
                     },
                     Err(HueError::LinkButtonNotPressed) => {
-                        *self = Self::LinkButtonNotPressed;
+                        self.state = HueyState::LinkButtonNotPressed;
                     },
-                    _ => { *self = Self::Failed }
+                    _ => { self.state = HueyState::Failed }
                 }
             },
             Message::ListLights(result) => {
                 if let Ok(lights) = result {
-                    if let Self::BridgePaired { bridge} = self {
-                        *self = Self::Dashboard { bridge: bridge.to_owned(), lights }
+                    self.state = if let HueyState::BridgePaired { bridge} = &self.state {
+                        HueyState::Dashboard { bridge: bridge.to_owned(), lights }
                     } else {
-                        *self = Self::Failed;
-                    }
+                        HueyState::Failed
+                    };
                 } else {
-                    *self = Self::Failed;
+                    self.state = HueyState::Failed;
                 }
+            },
+            Message::TrayEvent(event) => {
+                println!("{:?}", event);
             },
             _ => {},
         }
