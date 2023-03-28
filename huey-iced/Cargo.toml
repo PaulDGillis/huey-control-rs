@@ -6,6 +6,10 @@ edition = "2021"
 [dependencies]
 huey-core = { path = "../huey-core/" }
 iced = { version = "0.8.0", features = ["default", "canvas", "debug", "tokio"] }
+iced_native = { version = "0.9.1" }
 iced_aw = { git = "https://github.com/iced-rs/iced_aw.git", rev = "49c6f99", features = ["default", "color_picker", "icons", "spinner", "cupertino"] }
 tray-icon = { version = "0.4.3" }
 crossbeam-channel = "0.5"
+image = { version = "0.24" }
+futures = { version = "0.3.27" }
+tokio = { version = "1.26.0", features=["full"] }

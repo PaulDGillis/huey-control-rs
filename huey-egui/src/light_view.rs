@@ -18,7 +18,7 @@ impl LightsViewModel {
         let lights_promise = self.0.get_or_insert_with(|| {
             let bridge = bridge.clone();
             Promise::spawn_async(async move {
-                Light::list_lights(&bridge).await.map(|lights| {
+                Light::list_lights(bridge).await.map(|lights| {
                     lights.into_iter().map(|light| {
                         LightViewModel::new(light)
                     }).collect()
