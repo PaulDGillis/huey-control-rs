@@ -69,6 +69,7 @@ pub enum Message {
 struct HueyApp {
     tray: HueyTray,
     bridge: Option<HueBridge>,
+    is_visible: bool,
     state: State
 }
 
@@ -82,6 +83,7 @@ impl Application for HueyApp {
         (Self {
             tray: HueyTray::new(flags),
             bridge: None,
+            is_visible: false,
             state: State::Search,
         }, Command::perform(HueBridge::discover(), Message::DiscoverBridge))
     }
@@ -97,7 +99,7 @@ impl Application for HueyApp {
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Message::DiscoverBridge(result) => {
-                if let Ok(ip) = result {
+                if let Ok(_ip) = result {
                     // return Command::perform(HueBridge::pair(ip), Message::PairBridge);
                 } else { 
                     self.state = State::Failed;
@@ -125,10 +127,28 @@ impl Application for HueyApp {
             },
             Message::TrayEvent(HueyTrayEvent::TrayEvent(event)) => {
                 if event.event == ClickEvent::Left {
-                    let icon_rect = event.icon_rect;
-                    
+                    let (x, y) = {
+                        let icon_center_x = (((event.icon_rect.right - event.icon_rect.left) / 2.0 + event.icon_rect.left) / 2.0) as i32;
+                        let icon_top_y = event.icon_rect.top as i32;
+                        const WIDTH: i32 = 300;
+                        const HEIGHT: i32 = 200;
+                        if cfg!(windows) {
+                            (icon_center_x - (WIDTH / 2),
+                            icon_top_y - 70 - HEIGHT)
+                        } else {
+                            (icon_center_x - (WIDTH / 2), 
+                                (icon_top_y / 2) + 12)
+                        }
+                    };
+
+                    self.is_visible = !self.is_visible;
+                    let mode = if self.is_visible { window::Mode::Windowed } else { window::Mode::Hidden };
+                    let commands = vec![
+                        Command::single(Action::Window(window::Action::ChangeMode(mode))),
+                        Command::single(Action::Window(window::Action::Move { x, y }))
+                    ];
+                    return Command::batch(commands);
                 }
-                println!("{:?}", event);
             },
             Message::TrayEvent(HueyTrayEvent::MenuEvent(_)) => {
                 return Command::single(Action::Window(window::Action::Close))
